@@ -103,7 +103,8 @@ void CompiledModel::export_model(std::ostream& stream) const {
                                        initBlobSizes,
                                        _batchSize,
                                        inputLayouts,
-                                       outputLayouts)
+                                       outputLayouts,
+                                       _graph->get_blob_type())
         .write(stream);
 }
 
