@@ -432,6 +432,7 @@ static IODescriptor getIODescriptor(const ze_graph_argument_properties_4_t& arg,
                     shapeFromIRModel.push_back(ov::Dimension(1, dynamicDim));
                 } else {
                     shapeFromIRModel.push_back(ov::Dimension(1, shapeFromCompiler[id]));
+                    shapeFromIRModel.push_back(-1);
                 }
             }
         }
