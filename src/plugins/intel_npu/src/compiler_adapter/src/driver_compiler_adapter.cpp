@@ -17,7 +17,6 @@
 #include "intel_npu/utils/zero/zero_api.hpp"
 #include "intel_npu/utils/zero/zero_result.hpp"
 #include "intel_npu/utils/zero/zero_utils.hpp"
-#include "ir_graph.hpp"
 #include "ir_serializer.hpp"
 #include "mem_usage.hpp"
 #include "openvino/core/model.hpp"
