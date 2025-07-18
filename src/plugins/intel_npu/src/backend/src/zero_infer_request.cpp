@@ -213,6 +213,7 @@ void ZeroInferRequest::create_pipeline() {
 
     _logger.debug("ZeroInferRequest::create_pipeline - constructing pipeline");
 
+    #ifdef NPU_LLVM_BACKEND
     if (_graph->get_handle() == nullptr) {
         // Construct pipeline
         _pipeline = std::make_unique<DynamicPipeline>(_config,
@@ -221,6 +222,7 @@ void ZeroInferRequest::create_pipeline() {
                                                       _levelZeroInputTensors,
                                                       _levelZeroOutputTensors);
     } else
+    #endif
     {
         // Construct pipeline
         _pipeline =
