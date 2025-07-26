@@ -120,7 +120,7 @@ struct OptionParser<std::vector<T>> final {
     static std::vector<T> parse(std::string_view val) {
         std::vector<T> res;
         std::string val_str(val);
-        splitAndApply(val_str, ',', [&](std::string_view item) {
+        splitAndApply(val_str, ' ', [&](std::string_view item) {
             res.push_back(OptionParser<T>::parse(item));
         });
         return res;
@@ -196,6 +196,25 @@ struct OptionPrinter<std::map<K, V>> final {
             }
             ++counter;
         }
+        return ss.str();
+    }
+};
+
+template <>
+struct OptionPrinter<std::vector<int>> final {
+    static std::string toString(const std::vector<int>& val) {
+        std::stringstream ss;
+
+        if (!val.empty()) {
+            std::size_t i = 0;
+            for (auto&& v : val) {
+                ss << v;
+                if (i < (val.size() - 1))
+                    ss << ' ';
+                ++i;
+            }
+        }
+
         return ss.str();
     }
 };

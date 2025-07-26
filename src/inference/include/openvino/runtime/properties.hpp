@@ -15,6 +15,7 @@
 #include <cctype>
 #include <iomanip>
 #include <istream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -25,6 +26,8 @@
 #include "openvino/core/type/element_type.hpp"
 #include "openvino/runtime/common.hpp"
 #include "openvino/runtime/tensor.hpp"
+
+#include <iostream>
 
 namespace ov {
 
@@ -1367,4 +1370,32 @@ static constexpr Property<uint64_t, PropertyMutability::RW> key_cache_group_size
  * @ingroup ov_runtime_cpp_prop_api
  */
 static constexpr Property<uint64_t, PropertyMutability::RW> value_cache_group_size{"VALUE_CACHE_GROUP_SIZE"};
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<int>& args_with_dynamic_strides) {
+    if (!args_with_dynamic_strides.empty()) {
+        std::size_t i = 0;
+        for (auto&& v : args_with_dynamic_strides) {
+            os << v;
+            if (i < (args_with_dynamic_strides.size() - 1))
+                os << ' ';
+            ++i;
+        }
+    }
+    return os;
+}
+
+inline std::istream& operator>>(std::istream& is, std::vector<int>& args_with_dynamic_strides) {
+    std::string arg;
+    while (std::getline(is, arg, ' ')) {
+        args_with_dynamic_strides.push_back(std::stoi(arg));
+    }
+
+    return is;
+}
+
+static constexpr Property<std::vector<int>, PropertyMutability::RW> inputs_with_dynamic_strides(
+    "INPUTS_WITH_DYNAMIC_STRIDES");
+
+static constexpr Property<std::vector<int>, PropertyMutability::RW> outputs_with_dynamic_strides(
+    "OUTPUTS_WITH_DYNAMIC_STRIDES");
 }  // namespace ov

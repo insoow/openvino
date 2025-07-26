@@ -286,6 +286,8 @@ void Plugin::init_options() {
     REGISTER_OPTION(DEVICE_ID);
     REGISTER_OPTION(NUM_STREAMS);
     REGISTER_OPTION(PERF_COUNT);
+    REGISTER_OPTION(INPUTS_WITH_DYNAMIC_STRIDES);
+    REGISTER_OPTION(OUTPUTS_WITH_DYNAMIC_STRIDES);
     REGISTER_OPTION(LOADED_FROM_CACHE);
     REGISTER_OPTION(COMPILATION_NUM_THREADS);
     REGISTER_OPTION(PERFORMANCE_HINT);
@@ -500,7 +502,7 @@ FilteredConfig Plugin::fork_local_config(const std::map<std::string, std::string
             localConfig.update({{std::string(COMPILER_TYPE::key()), it->second}});
             // enable/disable config keys based on what the new compiler supports
             filter_config_by_compiler_support(localConfig);
-            compiler_changed = true;
+            compiler_changed = false;
         }
     }
     // 2. Revalidate unknown internal configs
