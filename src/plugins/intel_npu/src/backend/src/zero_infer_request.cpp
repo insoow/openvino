@@ -1047,8 +1047,10 @@ void ZeroInferRequest::infer_async() {
             std::cout << " create pipeline : pipelineCreated - " << _pipelineIsCreated << " , recreate - "
                       << _pipelineNeedsReallocation << std::endl;
             create_pipeline();  // Reallocate pipeline if necessary
-            _pipelineIsCreated = true;
+            //_pipelineIsCreated = true;
             _pipelineNeedsReallocation = false;  // Reset reallocation flag
+
+            create_pipeline();
         } else {
             if (_initStructs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0)) {
                 update_pipeline_if_memory_changed();
