@@ -965,7 +965,7 @@ void ZeroInferRequest::infer_async() {
         if (!_pipelineIsCreated || _dynamicBatchValueChanged) {
             OV_ITT_TASK_NEXT(ZERO_INFER, "create_pipeline");
             create_pipeline();  // Reallocate pipeline if necessary
-            _pipelineIsCreated = true;
+            //_pipelineIsCreated = true;
             _dynamicBatchValueChanged = false;  // Reset reallocation flag
         } else {
             if (_initStructs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0)) {
