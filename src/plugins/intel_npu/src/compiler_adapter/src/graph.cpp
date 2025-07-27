@@ -118,6 +118,13 @@ void Graph::set_argument_value(uint32_t argi, const void* argv) const {
     _zeGraphExt->setGraphArgumentValue(_graphDesc, argi, argv);
 }
 
+void Graph::set_graph_user_properties(uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) {
+    if (_zeGraphExt == nullptr) {
+        OPENVINO_THROW("Zero compiler adapter wasn't initialized");
+    }
+    _zeGraphExt->setGraphUserProperties(_handle, argIndex, pGraphArgumentUserProperties);
+}
+
 void Graph::initialize(const Config& config) {
     _logger.debug("Graph initialize start");
 

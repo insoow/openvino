@@ -36,6 +36,7 @@ public:
     void set_argument_value(uint32_t argi, const void* argv) const override;
 
     ze_graph_handle_t get_handle() const override;
+    void set_graph_user_properties(uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) override;
 
     void initialize(const Config& config) override;
 

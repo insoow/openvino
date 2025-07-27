@@ -153,6 +153,13 @@ void ZeGraphExtWrappers::setGraphArgumentValue(const GraphDescriptor& graphDescr
     THROW_ON_FAIL_FOR_LEVELZERO_EXT("zeGraphSetArgumentValue", result, _zeroInitStruct->getGraphDdiTable());
 }
 
+void ZeGraphExtWrappers::setGraphUserProperties(const GraphDescriptor& graphDescriptor, uint32_t argIndex,
+                                ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) {
+    std::cerr << "calling zero init struct\n";
+    auto result = _zeroInitStruct->getGraphDdiTable().pfnSetGraphUserPropertiesgraphDescriptor._handle, argIndex, pGraphArgumentUserProperties);
+    THROW_ON_FAIL_FOR_LEVELZERO_EXT("zeSetGraphUserProperties", result, _zeroInitStruct->getGraphDdiTable());
+}
+
 void ZeGraphExtWrappers::initializeGraph(const GraphDescriptor& graphDescriptor,
                                          uint32_t commandQueueGroupOrdinal) const {
     if (_zeroInitStruct->getGraphDdiTable().version() < ZE_GRAPH_EXT_VERSION_1_8) {

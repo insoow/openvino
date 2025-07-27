@@ -60,7 +60,11 @@ public:
 
     void setGraphArgumentValue(const GraphDescriptor& graphDescriptor, uint32_t argi_, const void* argv) const;
 
+
     void initializeGraph(const GraphDescriptor& graphDescriptor, uint32_t commandQueueGroupOrdinal) const;
+
+    void setGraphUserProperties(const GraphDescriptor& graphDescriptor, uint32_t argIndex,
+                                ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties);
 
 private:
     std::unordered_set<std::string> getQueryResultFromSupportedLayers(
