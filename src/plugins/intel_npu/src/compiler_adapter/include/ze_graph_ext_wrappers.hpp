@@ -63,6 +63,9 @@ public:
 
     void initializeGraph(const GraphDescriptor& graphDescriptor, uint32_t commandQueueGroupOrdinal) const;
 
+    void setGraphUserProperties(ze_graph_handle_t hGraph, uint32_t argIndex,
+                            ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties);
+
 private:
     std::unordered_set<std::string> getQueryResultFromSupportedLayers(
         ze_result_t result,

@@ -35,6 +35,8 @@ public:
 
     void set_argument_value(uint32_t argi, const void* argv) const override;
 
+    void set_graph_user_properties(uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) override;
+
     void initialize(const Config& config) override;
 
     const NetworkMetadata& get_metadata() const override;

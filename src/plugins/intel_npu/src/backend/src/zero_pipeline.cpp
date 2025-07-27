@@ -15,7 +15,20 @@
 #include "intel_npu/utils/zero/zero_remote_tensor.hpp"
 #include "intel_npu/utils/zero/zero_types.hpp"
 
+namespace {
+    template <typename Type>
+    std::optional<Type> extract_object(const ov::AnyMap& params, const ov::Property<Type>& p) {
+        auto itrHandle = params.find(p.name());
+        if (itrHandle == params.end()) {
+            return std::nullopt;
+        }
+
+        return ov::Any(itrHandle->second).as<Type>();
+    }
+}
+
 namespace intel_npu {
+    
 Pipeline::Pipeline(const Config& config,
                    const std::shared_ptr<ZeroInitStructsHolder>& init_structs,
                    const std::shared_ptr<IGraph>& graph,
@@ -28,6 +41,7 @@ Pipeline::Pipeline(const Config& config,
       _id(_graph->get_unique_id()),
       _number_of_command_lists(batch_size),
       _logger("Pipeline", _config.get<LOG_LEVEL>()) {
+    std::cerr << "Initializing pipeline\n";
     OV_ITT_SCOPED_TASK(itt::domains::LevelZeroBackend, "Zero_infer_request::Pipeline::Pipeline");
 
     _logger.debug("Pipeline - initialize started, number_of_command_lists %i", _number_of_command_lists);
@@ -97,13 +111,42 @@ Pipeline::Pipeline(const Config& config,
                 _logger.debug("Pipeline - set args for input index: %zu", io_index);
                 void* data = nullptr;
                 auto remote_tensor = std::dynamic_pointer_cast<ZeroRemoteTensor>(input_tensors.at(io_index).at(i));
-                if (remote_tensor == nullptr) {
-                    data = input_tensors.at(io_index).at(i)->data();
-                } else {
+                auto real_remote_tensor = std::dynamic_pointer_cast<ov::IRemoteTensor>(input_tensors.at(io_index).at(i));
+                if (remote_tensor) {
                     data = remote_tensor->get_original_memory();
+                } else if (real_remote_tensor) {
+                    auto props = real_remote_tensor->get_properties();
+                    std::optional<void*> mem_handle_object = extract_object(props, ov::intel_npu::mem_handle);
+                    if (!mem_handle_object.has_value()) {
+                        OPENVINO_THROW("no mem handle for remote tensor\n");
+                    }
+                    data = mem_handle_object.value();
+                } else {
+                    data = input_tensors.at(io_index).at(i)->data();
                 }
 
                 graph->set_argument_value(desc.idx, data);
+
+                std::cerr << "before check1\n";
+                if (!input_tensors.at(io_index).at(i)->is_continuous()) {
+                    std::cerr << "input not continous\n";
+                    ze_graph_argument_user_properties_strides_t stridesItem;
+                    stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
+                    stridesItem.header.pNext = nullptr;
+                    auto strides = input_tensors.at(io_index).at(i)->get_strides();
+                    for (auto idx = 0; idx < 5; idx++) {
+                        if (idx < strides.size()) {
+                            stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                            std::cerr << "setting user strides on inputs idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
+                        } else {
+                            stridesItem.userStrides[idx] = 0;
+                        }
+                    }
+                    stridesItem.userStrides[0] = 12;
+                    stridesItem.userStrides[1] = 0;
+                    stridesItem.userStrides[2] = 0;
+                    graph->set_graph_user_properties(desc.idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
+                }
 
                 ++io_index;
                 continue;
@@ -111,16 +154,53 @@ Pipeline::Pipeline(const Config& config,
 
             void* data = nullptr;
             auto remote_tensor = std::dynamic_pointer_cast<ZeroRemoteTensor>(input_tensors.at(io_index).at(0));
-            if (remote_tensor == nullptr) {
-                data = input_tensors.at(io_index).at(0)->data();
-            } else {
+            auto real_remote_tensor = std::dynamic_pointer_cast<ov::IRemoteTensor>(input_tensors.at(io_index).at(0));
+            if (remote_tensor) {
                 data = remote_tensor->get_original_memory();
+            } else if (real_remote_tensor) {
+                std::cerr << "getting data from real remote tensor\n";
+                auto props = real_remote_tensor->get_properties();
+                std::optional<void*> mem_handle_object = extract_object(props, ov::intel_npu::mem_handle);
+                if (!mem_handle_object.has_value()) {
+                    OPENVINO_THROW("no mem handle for remote tensor\n");
+                }
+                data = mem_handle_object.value();
+
+                auto itrHandle = props.find("offset");
+                size_t offset = 0;
+                if (itrHandle != props.end()) {
+                    offset = ov::Any(itrHandle->second).as<size_t>();
+                }
+                data = reinterpret_cast<void*>(reinterpret_cast<unsigned char*>(data) + offset);
+            } else {
+                data = input_tensors.at(io_index).at(i)->data();
             }
 
             graph->set_argument_value(
                 desc.idx,
                 static_cast<unsigned char*>(data) +
                     (i * input_tensors.at(io_index).at(0)->get_byte_size()) / _number_of_command_lists);
+
+            std::cerr << "before check2\n";
+            if (!input_tensors.at(io_index).at(0)->is_continuous()) {
+                std::cerr << "input not continous\n";
+                ze_graph_argument_user_properties_strides_t stridesItem;
+                stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
+                stridesItem.header.pNext = nullptr;
+                auto strides = input_tensors.at(io_index).at(0)->get_strides();
+                for (auto idx = 0; idx < 5; idx++) {
+                    if (idx < strides.size()) {
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                        std::cerr << "setting user strides on input idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
+                    } else {
+                        stridesItem.userStrides[idx] = 0;
+                    }
+                }
+                stridesItem.userStrides[0] = 12;
+                stridesItem.userStrides[1] = 0;
+                stridesItem.userStrides[2] = 0;
+                graph->set_graph_user_properties(desc.idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
+            }
 
             ++io_index;
         }
@@ -140,6 +220,22 @@ Pipeline::Pipeline(const Config& config,
                 desc.idx,
                 static_cast<unsigned char*>(data) +
                     (i * output_tensors.at(io_index)->get_byte_size()) / _number_of_command_lists);
+
+            if (!output_tensors.at(io_index)->is_continuous()) {
+                ze_graph_argument_user_properties_strides_t stridesItem;
+                stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
+                stridesItem.header.pNext = nullptr;
+                auto strides = output_tensors.at(io_index)->get_strides();
+                for (auto idx = 0; idx < 5; idx++) {
+                    if (strides.size() < idx) {
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                    } else {
+                        stridesItem.userStrides[idx] = 0;
+                    }
+                }
+                graph->set_graph_user_properties(desc.idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
+            }
+
             ++io_index;
         }
 
@@ -181,6 +277,7 @@ Pipeline::Pipeline(const Config& config,
             _events.at(i)->AppendSignalEvent(*_command_lists.at(i));
         }
     }
+    std::cerr << "pipeline initialized\n";
     _logger.debug("Pipeline - initialize completed");
 }
 
