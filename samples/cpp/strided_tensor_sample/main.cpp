@@ -4,6 +4,8 @@
 #include "openvino/op/multiply.hpp"
 #include "openvino/pass/serialize.hpp"
 
+#include <openvino/runtime/intel_npu/remote_properties.hpp>
+
 #include <iostream>
 
 int main(int, char*) {
@@ -30,21 +32,33 @@ try {
                             3, 2, 3, 4, 5, 6,
                             4, 2, 3, 4, 5, 6};
 
+    ov::AnyMap main_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(data)}};
+
+    ov::AnyMap sanity_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(sanityData)}};
+
     ov::Tensor input1(elemType, inputShape, data);
-    ov::Tensor input2(elemType, inputShape, data);
     ov::Tensor input_temp(elemType, inputShapeSlice);
 
-    ov::Tensor input1_roi1(input1, {0, 0, 0}, {1, 4, 6});
-    ov::Tensor input2_roi1(input2, {0, 0, 0}, {1, 4, 6});
-    ov::Tensor input1_roi2(input1, {0, 4, 0}, {1, 8, 6});
-    ov::Tensor input2_roi2(input2, {0, 4, 0}, {1, 8, 6});
-    ov::Tensor input1_roi3(input1, {0, 0, 6}, {1, 4, 12});
-    ov::Tensor input2_roi3(input2, {0, 0, 6}, {1, 4, 12});
-    ov::Tensor input1_roi4(input1, {0, 4, 6}, {1, 8, 12});
-    ov::Tensor input2_roi4(input2, {0, 4, 6}, {1, 8, 12});
-
     ov::Tensor sanity_input1(elemType, inputShapeSlice, sanityData);
-    ov::Tensor sanity_input2(elemType, inputShapeSlice, sanityData);
+
+    auto remoteCtx = core.get_default_context("NPU");
+    auto zeroMainRemoteTensor = remoteCtx.create_tensor(elemType, inputShape, main_params);
+
+    ov::RemoteTensor input1_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input2_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input1_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input2_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input1_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
+    ov::RemoteTensor input2_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
+
+    auto sanityInputRemoteTensor = remoteCtx.create_tensor(elemType, inputShapeSlice, sanity_params);
+
 
     auto sanityCheckParam1 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
     auto sanityCheckParam2 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
@@ -53,8 +67,8 @@ try {
     auto sanityCheckModel = std::make_shared<ov::Model>(sanityCheckResults, ov::ParameterVector{sanityCheckParam1, sanityCheckParam2}, "EltwiseMultiply");
     ov::CompiledModel compiled_sanitycheck_model = core.compile_model(sanityCheckModel, "NPU");
     ov::InferRequest infer_sanitycheck_request = compiled_sanitycheck_model.create_infer_request();
-    infer_sanitycheck_request.set_input_tensor(0, sanity_input1);
-    infer_sanitycheck_request.set_input_tensor(1, sanity_input2);
+    infer_sanitycheck_request.set_input_tensor(0, sanityInputRemoteTensor);
+    infer_sanitycheck_request.set_input_tensor(1, sanityInputRemoteTensor);
     infer_sanitycheck_request.infer();
     auto outputSanityCheck = infer_sanitycheck_request.get_output_tensor(0);
     auto outSanityData = outputSanityCheck.data<uint8_t>();
