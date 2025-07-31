@@ -134,17 +134,16 @@ Pipeline::Pipeline(const Config& config,
                     stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                     stridesItem.header.pNext = nullptr;
                     auto strides = input_tensors.at(io_index).at(i)->get_strides();
+                    auto stridesIt = strides.rbegin();
                     for (auto idx = 0; idx < 5; idx++) {
                         if (idx < strides.size()) {
-                            stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                            stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                            stridesIt++;
                             std::cerr << "setting user strides on inputs idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
                         } else {
                             stridesItem.userStrides[idx] = 0;
                         }
                     }
-                    stridesItem.userStrides[0] = 12;
-                    stridesItem.userStrides[1] = 0;
-                    stridesItem.userStrides[2] = 0;
                     graph->set_graph_user_properties(desc.idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
                 }
 
@@ -188,17 +187,16 @@ Pipeline::Pipeline(const Config& config,
                 stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                 stridesItem.header.pNext = nullptr;
                 auto strides = input_tensors.at(io_index).at(0)->get_strides();
+                auto stridesIt = strides.rbegin();
                 for (auto idx = 0; idx < 5; idx++) {
                     if (idx < strides.size()) {
-                        stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                        stridesIt++;
                         std::cerr << "setting user strides on input idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
                     } else {
                         stridesItem.userStrides[idx] = 0;
                     }
                 }
-                stridesItem.userStrides[0] = 12;
-                stridesItem.userStrides[1] = 0;
-                stridesItem.userStrides[2] = 0;
                 graph->set_graph_user_properties(desc.idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
             }
 
@@ -226,9 +224,11 @@ Pipeline::Pipeline(const Config& config,
                 stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                 stridesItem.header.pNext = nullptr;
                 auto strides = output_tensors.at(io_index)->get_strides();
+                auto stridesIt = strides.rbegin();
                 for (auto idx = 0; idx < 5; idx++) {
                     if (strides.size() < idx) {
-                        stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                        stridesIt++;
                     } else {
                         stridesItem.userStrides[idx] = 0;
                     }
