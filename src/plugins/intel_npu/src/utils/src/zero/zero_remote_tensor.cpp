@@ -13,6 +13,7 @@
 #include "intel_npu/utils/zero/zero_api.hpp"
 #include "intel_npu/utils/zero/zero_utils.hpp"
 #include "openvino/core/memory_util.hpp"
+#include "openvino/core/type/element_iterator.hpp"
 #include "openvino/runtime/tensor.hpp"
 
 using namespace ov::intel_npu;
