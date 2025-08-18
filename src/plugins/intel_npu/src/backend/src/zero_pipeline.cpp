@@ -130,6 +130,9 @@ Pipeline::Pipeline(const Config& config,
                 std::cerr << "before check1\n";
                 if (!input_tensors.at(io_index).at(i)->is_continuous()) {
                     std::cerr << "input not continous\n";
+                    if (!desc.info.supports_dynamic_strides) {
+                        OPENVINO_THROW("Non continous input tensor on port without dynamic strides support");
+                    }
                     ze_graph_argument_user_properties_strides_t stridesItem;
                     stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                     stridesItem.header.pNext = nullptr;
@@ -183,6 +186,9 @@ Pipeline::Pipeline(const Config& config,
             std::cerr << "before check2\n";
             if (!input_tensors.at(io_index).at(0)->is_continuous()) {
                 std::cerr << "input not continous\n";
+                if (!desc.info.supports_dynamic_strides) {
+                    OPENVINO_THROW("Non continous input tensor on port without dynamic strides support");
+                }
                 ze_graph_argument_user_properties_strides_t stridesItem;
                 stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                 stridesItem.header.pNext = nullptr;
@@ -220,6 +226,9 @@ Pipeline::Pipeline(const Config& config,
                     (i * output_tensors.at(io_index)->get_byte_size()) / _number_of_command_lists);
 
             if (!output_tensors.at(io_index)->is_continuous()) {
+                if (!desc.info.supports_dynamic_strides) {
+                    OPENVINO_THROW("Non continous output tensor on port without dynamic strides support");
+                }
                 ze_graph_argument_user_properties_strides_t stridesItem;
                 stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
                 stridesItem.header.pNext = nullptr;
