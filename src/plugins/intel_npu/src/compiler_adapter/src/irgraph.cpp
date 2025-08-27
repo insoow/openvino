@@ -756,5 +756,12 @@ void IRGraph::getBinding(GraphArguments& args) {
 
     impl->getBinding(args);
 }
+
+void IRGraph::set_graph_user_properties( uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties )
+{
+    // TODO
+    std::cout << "not supported" << std::endl;
+}
+
 }  // namespace intel_npu
 #endif  // NPU_LLVM_BACKEND

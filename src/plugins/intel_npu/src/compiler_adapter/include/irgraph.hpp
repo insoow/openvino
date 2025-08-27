@@ -106,6 +106,8 @@ public:
                                const ov::Strides& strides,
                                const ov::Shape& shapes) const;
 
+    virtual void set_graph_user_properties(uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties);
+
     void initialize(const Config& config) override;
 
     ~IRGraph() override;

@@ -553,7 +553,9 @@ void ZeroInferRequest::set_remote_data(const std::shared_ptr<ov::IRemoteTensor>&
         _pipeline->update_graph_arguments(
             isInput ? _graph->get_input_descriptors().at(index).idx : _graph->get_output_descriptors().at(index).idx,
             data,
-            remoteTensor->get_byte_size());
+            remoteTensor->get_byte_size(),
+            remoteTensor->get_strides(),
+            remoteTensor->get_shape());
 
         std::cerr << "input not continous update\n";
         ze_graph_argument_user_properties_strides_t stridesItem;
