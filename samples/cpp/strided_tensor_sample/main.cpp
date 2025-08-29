@@ -207,6 +207,95 @@ try {
         }
         std::cout << "\n";
     }
+
+    std::cout << "MaxPool test\n";
+
+    const ov::Shape maxPoolInputShape({1, 16, 108, 1280});
+    const ov::Shape maxPoolSliceInputShape({1, 16, 36, 1280});
+    const ov::element::Type_t maxPoolElemType = ov::element::Type_t::f32;
+
+    float* maxPoolData = new float[2211840];
+
+    for (int idx = 0; idx < 2211840; idx++) {
+        maxPoolData[idx] = (idx % 256);
+    }
+
+    ov::AnyMap max_pool_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(maxPoolData)}};
+
+    auto zeroMaxPoolMainTensor = remoteCtx.create_tensor(maxPoolElemType, maxPoolInputShape, max_pool_params);
+
+    ov::RemoteTensor max_pool_roi1(zeroMaxPoolMainTensor, {0, 0, 0, 0}, {1, 16, 36, 1280});
+    ov::RemoteTensor max_pool_roi2(zeroMaxPoolMainTensor, {0, 0, 36, 0}, {1, 16, 72, 1280});
+    ov::RemoteTensor max_pool_roi3(zeroMaxPoolMainTensor, {0, 0, 72, 0}, {1, 16, 108, 1280});
+
+    auto max_pool_param = std::make_shared<ov::op::v0::Parameter>(maxPoolElemType, maxPoolSliceInputShape);
+
+    auto max_pool = std::make_shared<ov::op::v1::MaxPool>(max_pool_param, ov::Strides{2, 2}, 
+                                                            ov::Shape{0, 0}, ov::Shape{0, 0}, ov::Shape{4, 4});
+    max_pool->get_output_tensor(0).set_names({"MaxPool_Results"});
+
+    const auto max_pool_results = ov::ResultVector{std::make_shared<ov::opset1::Result>(max_pool->output(0))};
+    auto max_pool_model = std::make_shared<ov::Model>(max_pool_results, ov::ParameterVector{max_pool_param}, "MaxPool");
+
+    ov::serialize(model, "maxpool.xml", "maxpool.bin");
+
+    ov::CompiledModel compiled_max_pool = core.compile_model(max_pool_model, "NPU");
+    ov::InferRequest max_pool_infer_request = compiled_max_pool.create_infer_request();
+
+    max_pool_infer_request.set_input_tensor(0, max_pool_roi1);
+    max_pool_infer_request.infer();
+
+    auto outputMaxPoolTensor = max_pool_infer_request.get_output_tensor(0);
+    auto outMaxPoolData = outputMaxPoolTensor.data<float>();
+
+    std::cout << "printing max pool output 1\n";
+    dataIdx = 0;
+    for (size_t idx = 0; idx < 16; idx++) {
+        for (size_t idx2 = 0; idx2 < 36; idx2++) {
+            for (size_t idx3 = 0; idx3 < 1280; idx3++) {
+                std::cout << static_cast<int>(outMaxPoolData[dataIdx]) << " ";
+                dataIdx++;
+            }
+            std::cout << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    max_pool_infer_request.set_input_tensor(0, max_pool_roi2);
+    max_pool_infer_request.infer();
+
+    std::cout << "printing max pool output 2\n";
+    dataIdx = 0;
+    for (size_t idx = 0; idx < 16; idx++) {
+        for (size_t idx2 = 0; idx2 < 36; idx2++) {
+            for (size_t idx3 = 0; idx3 < 1280; idx3++) {
+                std::cout << static_cast<int>(outMaxPoolData[dataIdx]) << " ";
+                dataIdx++;
+            }
+            std::cout << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    max_pool_infer_request.set_input_tensor(0, max_pool_roi3);
+    max_pool_infer_request.infer();
+
+    std::cout << "printing max pool output 3\n";
+    dataIdx = 0;
+    for (size_t idx = 0; idx < 16; idx++) {
+        for (size_t idx2 = 0; idx2 < 36; idx2++) {
+            for (size_t idx3 = 0; idx3 < 1280; idx3++) {
+                std::cout << static_cast<int>(outMaxPoolData[dataIdx]) << " ";
+                dataIdx++;
+            }
+            std::cout << "\n";
+        }
+        std::cout << "\n";
+    }
+
+
 } catch (const std::exception& ex) {
     std::cout << ex.what() << std::endl;
     return EXIT_FAILURE;
