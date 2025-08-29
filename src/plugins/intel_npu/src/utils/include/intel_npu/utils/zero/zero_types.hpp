@@ -192,8 +192,12 @@ public:
     ze_result_t ZE_APICALL pfnSetGraphUserProperties(ze_graph_handle_t hGraph, uint32_t argIndex,
                         ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) {
         std::cerr << "calling _impl address" << reinterpret_cast<void*>(_impl->pfnSetGraphUserProperties) << "\n";
-        std::cerr << "_impl other address " << reinterpret_cast<void*>(_impl->pfnCompilerIsOptionSupported) << "\n";
         return _impl->pfnSetGraphUserProperties(hGraph, argIndex, pGraphArgumentUserProperties);
+    }
+
+    ze_result_t ZE_APICALL pfnGraphGetArgumentProperties4(ze_graph_handle_t hGraph, uint32_t argIndex, ze_graph_argument_properties_4_t* pGraphArgumentProperties) {
+        std::cerr << "calling pfnGraphGetArgumentProperties4\n";
+        return _impl->pfnGraphGetArgumentProperties4(hGraph, argIndex, pGraphArgumentProperties);
     }
 };
 

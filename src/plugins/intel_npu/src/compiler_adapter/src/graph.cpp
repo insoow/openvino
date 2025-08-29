@@ -184,12 +184,13 @@ void Graph::initialize(const Config& config) {
     auto result = _zeroInitStruct->getGraphDdiTable().pfnGetProperties(_graphDesc._handle, &props);
     THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetProperties", result, _zeroInitStruct->getGraphDdiTable());
 
-    _logger.debug("performing pfnGetArgumentProperties3");
+    _logger.debug("performing pfnGraphGetArgumentProperties4");
     for (uint32_t index = 0; index < props.numGraphArgs; ++index) {
-        ze_graph_argument_properties_3_t arg3{};
+        ze_graph_argument_properties_4_t arg3{};
         arg3.stype = ZE_STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTIES;
-        auto result = _zeroInitStruct->getGraphDdiTable().pfnGetArgumentProperties3(_graphDesc._handle, index, &arg3);
-        THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetArgumentProperties3", result, _zeroInitStruct->getGraphDdiTable());
+        arg3.version = ZE_GRAPH_ARGUMENT_PROPERTIES_VERSION_CURRENT;
+        auto result = _zeroInitStruct->getGraphDdiTable().pfnGraphGetArgumentProperties4(_graphDesc._handle, index, &arg3);
+        THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGraphGetArgumentProperties4", result, _zeroInitStruct->getGraphDdiTable());
 
         if (arg3.type == ZE_GRAPH_ARGUMENT_TYPE_INPUT) {
             _inputDescriptors.push_back(ArgumentDescriptor{arg3, index});

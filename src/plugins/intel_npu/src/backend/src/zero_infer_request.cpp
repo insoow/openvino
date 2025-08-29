@@ -424,6 +424,7 @@ void ZeroInferRequest::set_remote_data(const std::shared_ptr<ov::IRemoteTensor>&
     levelZeroTensors = remoteTensor;
 
     if (_pipelineIsCreated) {
+        std::cerr << "update command list\n";
         _logger.debug("ZeroInferRequest::infer_async - update command list");
 
         //auto data = zeroTensor->get_original_memory();
@@ -445,29 +446,30 @@ void ZeroInferRequest::set_remote_data(const std::shared_ptr<ov::IRemoteTensor>&
         }
         data = reinterpret_cast<void*>(reinterpret_cast<unsigned char*>(data) + offset);
 
+        std::optional<std::array<uint32_t, 5>> optStrides = std::nullopt;
+
+        if (!remoteTensor->is_continuous()) {
+            std::cerr << "set real remote tensor strides\n";
+            std::array<uint32_t, 5> userStrides;
+            auto strides = remoteTensor->get_strides();
+            auto stridesIt = strides.rbegin();
+            for (auto idx = 0; idx < 5; idx++) {
+                if (idx < strides.size()) {
+                    userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                    stridesIt++;
+                    std::cerr << "setting user strides on input idx = " << idx << " value " << userStrides[idx] << std::endl;
+                } else {
+                    userStrides[idx] = 0;
+                }
+            }
+            optStrides = userStrides;
+        }
+
         OV_ITT_TASK_NEXT(ZERO_SET_REMOTE_TENSOR, "update_graph_arguments");
         _pipeline->update_graph_arguments(
             isInput ? _graph->get_input_descriptors().at(index).idx : _graph->get_output_descriptors().at(index).idx,
             data,
-            remoteTensor->get_byte_size());
-
-        std::cerr << "input not continous update\n";
-        ze_graph_argument_user_properties_strides_t stridesItem;
-        stridesItem.header.stype = ZE_GRAPH_ARGUMENT_USER_PROPERTY_TYPE_STRIDES;
-        stridesItem.header.pNext = nullptr;
-        auto strides = remoteTensor->get_strides();
-        for (auto idx = 0; idx < 5; idx++) {
-            if (idx < strides.size()) {
-                stridesItem.userStrides[idx] = static_cast<uint32_t>(strides[idx]);
-                std::cerr << "setting user strides on input idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
-            } else {
-                stridesItem.userStrides[idx] = 0;
-            }
-        }
-        stridesItem.userStrides[0] = 12;
-        stridesItem.userStrides[1] = 0;
-        stridesItem.userStrides[2] = 0;
-        _graph->set_graph_user_properties(isInput ? _graph->get_input_descriptors().at(index).idx : _graph->get_output_descriptors().at(index).idx, reinterpret_cast<ze_graph_argument_user_properties_header_t*>(&stridesItem));
+            remoteTensor->get_byte_size(), optStrides);
     }
 }
 
