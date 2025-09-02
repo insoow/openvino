@@ -91,9 +91,6 @@ struct DynamicPipeline : public Pipeline {
                     }
                 }
 
-                // Need stride based on element but not byte
-                _binding._inputs[arg_index]->updateStride();
-
                 oss.clear();
                 oss.str("");
                 oss << *(_binding._inputs[arg_index]);
@@ -127,9 +124,6 @@ struct DynamicPipeline : public Pipeline {
                             _binding._outputs[output_index]->strides[i] = 1;
                         }
                     }
-
-                    // Need stride based on element but not byte
-                    _binding._outputs[output_index]->updateStride();
 
                     oss.clear();
                     oss.str("");
