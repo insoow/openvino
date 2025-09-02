@@ -640,6 +640,10 @@ void IRGraph::set_argument_value(uint32_t argi, const void* argv) const {
     _impl->setArgumentValue(argi, argv);
 }
 
+void IRGraph::set_graph_user_properties(uint32_t argIndex, ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) {
+    std::cout << "set_graph_user_properties" << std::endl;
+}
+
 ze_graph_handle_t IRGraph::get_handle() const {
     _logger.warning("IRGraph does not support get_handle() method.");
     return nullptr;
