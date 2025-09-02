@@ -9,7 +9,7 @@
 ov::Exception::Exception(const std::string& what_arg) : std::runtime_error(what_arg) {}
 
 void ov::Exception::create(const char* file, int line, const std::string& explanation) {
-    throw ov::Exception(make_what(file, line, nullptr, default_msg, explanation));
+    throw ov::Exception(make_what(file, line, nullptr, "default_msg", explanation));
 }
 
 std::string ov::Exception::make_what(const char* file,
@@ -35,7 +35,7 @@ std::string ov::Exception::make_what(const char* file,
 
 ov::Exception::~Exception() = default;
 
-const std::string ov::Exception::default_msg{};
+//const std::string ov::Exception::default_msg{};
 
 void ov::AssertFailure::create(const char* file,
                                int line,
@@ -48,9 +48,9 @@ void ov::AssertFailure::create(const char* file,
 ov::AssertFailure::~AssertFailure() = default;
 
 void ov::NotImplemented::create(const char* file, int line, const std::string& explanation) {
-    throw ov::NotImplemented(make_what(file, line, nullptr, default_msg, explanation));
+    throw ov::NotImplemented(make_what(file, line, nullptr, "Not Implemented", explanation));
 }
 
 ov::NotImplemented::~NotImplemented() = default;
 
-const std::string ov::NotImplemented::default_msg{"Not Implemented"};
+//const std::string ov::NotImplemented::default_msg{"Not Implemented"};

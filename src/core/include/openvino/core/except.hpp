@@ -19,7 +19,7 @@ public:
     [[noreturn]] static void create(const char* file, int line, const std::string& explanation);
     virtual ~Exception();
 
-    static const std::string default_msg;
+    //static const std::string default_msg;
 
 protected:
     explicit Exception(const std::string& what_arg);
@@ -74,7 +74,7 @@ public:
     [[noreturn]] static void create(const char* file, int line, const std::string& explanation);
     virtual ~NotImplemented();
 
-    static const std::string default_msg;
+    //static const std::string default_msg;
 
 protected:
     explicit NotImplemented(const std::string& what_arg) : ov::AssertFailure(what_arg) {}
@@ -155,7 +155,7 @@ protected:
 #define OPENVINO_ASSERT_HELPER1(exc_class, ctx, check)                                      \
     do {                                                                                    \
         if (!static_cast<bool>(check)) {                                                    \
-            exc_class::create(__FILE__, __LINE__, (#check), (ctx), exc_class::default_msg); \
+            exc_class::create(__FILE__, __LINE__, (#check), (ctx), "exc_class::default_msg"); \
         }                                                                                   \
     } while (0)
 
@@ -183,7 +183,7 @@ protected:
 ///            stream-insertion operator. Note that the expressions here will be evaluated lazily,
 ///            i.e., only if the `cond` evaluates to `false`.
 /// \throws ::ov::AssertFailure if `cond` is false.
-#define OPENVINO_ASSERT(...) OPENVINO_ASSERT_HELPER(::ov::AssertFailure, ::ov::AssertFailure::default_msg, __VA_ARGS__)
+#define OPENVINO_ASSERT(...) OPENVINO_ASSERT_HELPER(::ov::AssertFailure, "::ov::AssertFailure::default_msg", __VA_ARGS__)
 
 /// \brief Debug version of OPENVINO_ASSERT that is only active when NDEBUG is not defined
 ///        i.e. Release / production builds.
@@ -194,7 +194,7 @@ protected:
 /// \throws ::ov::AssertFailure if `cond` is false and NDEBUG is not defined.
 #ifndef NDEBUG
 #    define OPENVINO_DEBUG_ASSERT(...) \
-        OPENVINO_ASSERT_HELPER(::ov::AssertFailure, ::ov::AssertFailure::default_msg, __VA_ARGS__)
+        OPENVINO_ASSERT_HELPER(::ov::AssertFailure, "::ov::AssertFailure::default_msg", __VA_ARGS__)
 #else
 #    define OPENVINO_DEBUG_ASSERT(...)
 #endif
@@ -203,13 +203,13 @@ protected:
 /// implemented with OPENVINO_ASSERT macro.
 /// \param ... Additional error message that should describe why that execution path is unreachable.
 /// \throws ::ov::Exception if the macro is executed.
-#define OPENVINO_THROW(...) OPENVINO_THROW_HELPER(::ov::Exception, ov::Exception::default_msg, __VA_ARGS__)
+#define OPENVINO_THROW(...) OPENVINO_THROW_HELPER(::ov::Exception, "ov::Exception::default_msg", __VA_ARGS__)
 
 #define OPENVINO_THROW_NOT_IMPLEMENTED(...) \
-    OPENVINO_THROW_HELPER(::ov::NotImplemented, ::ov::Exception::default_msg, __VA_ARGS__)
+    OPENVINO_THROW_HELPER(::ov::NotImplemented, "::ov::Exception::default_msg", __VA_ARGS__)
 
 #define OPENVINO_NOT_IMPLEMENTED \
-    OPENVINO_THROW_HELPER(::ov::NotImplemented, ::ov::Exception::default_msg, ::ov::Exception::default_msg)
+    OPENVINO_THROW_HELPER(::ov::NotImplemented, "::ov::Exception::default_msg", "::ov::Exception::default_msg")
 
 #define GLUE(x, y) x y
 
