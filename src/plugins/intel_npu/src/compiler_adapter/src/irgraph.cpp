@@ -316,14 +316,16 @@ void IRGraphImpl::prepareMetadata(NetworkMetadata& metadata,
         if (npuMLIRRuntimeGetMetadata(_engine, i, &arg, &meta, upperBound.data()) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
             OPENVINO_THROW("Failed to get MLIR runtime metadata");
         }
+        
+        ze_graph_argument_property_strides_t argStrides{ZE_STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTY_STRIDES, nullptr, true};
         switch (arg.type) {
         case ZE_GRAPH_ARGUMENT_TYPE_INPUT: {
             metadata.inputs.push_back(getIODescriptor(arg, meta));
-            inputs.push_back({arg, i});
+            inputs.push_back({arg, argStrides, i});
         } break;
         case ZE_GRAPH_ARGUMENT_TYPE_OUTPUT: {
             metadata.outputs.push_back(getIODescriptor(arg, meta));
-            outputs.push_back({arg, i});
+            outputs.push_back({arg, argStrides, i});
         } break;
         default: {
             OPENVINO_THROW("Invalid ze_graph_argument_type_t found in ze_graph_argument_properties_3_t object: ",
@@ -400,7 +402,6 @@ void IRGraphImpl::setArgumentProperty(uint32_t argi,
         }
 
         // Need stride based on element but not byte
-        inputs[argi]->updateStride();
         oss.clear();
         oss.str("");
         oss << *(inputs[argi]);
@@ -438,7 +439,6 @@ void IRGraphImpl::setArgumentProperty(uint32_t argi,
             }
 
             // Need stride based on element but not byte
-            outputs[idx]->updateStride();
 
             oss.clear();
             oss.str("");
