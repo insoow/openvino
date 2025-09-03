@@ -131,7 +131,7 @@ CommandList::~CommandList() {
 
     _handle = nullptr;
 }
-void CommandList::updateMutableCommandList(uint32_t arg_index, const void* arg_value, std::optional<std::array<uint32_t, 5>> strides) const {
+void CommandList::updateMutableCommandList(uint32_t arg_index, const void* arg_value, std::optional<std::array<uint32_t, 5>>) const {
     ze_mutable_graph_argument_exp_desc_t desc = {
         (_init_structs->getZeDrvApiVersion() >= ZE_MAKE_VERSION(1, 11))
             ? ZE_STRUCTURE_TYPE_MUTABLE_GRAPH_ARGUMENT_EXP_DESC
@@ -141,21 +141,21 @@ void CommandList::updateMutableCommandList(uint32_t arg_index, const void* arg_v
         arg_index,
         arg_value};
 
-    ze_mutable_graph_argument_strides_desc_t strides_desc = {
-        static_cast<ze_structure_type_t>(ZE_STRUCTURE_TYPE_MUTABLE_GRAPH_STRIDES_DESC),
-        nullptr,
-        _command_id,
-        arg_index,
-        {0, 0, 0, 0, 0}
-    };
+    //ze_mutable_graph_argument_strides_desc_t strides_desc = {
+    //    static_cast<ze_structure_type_t>(ZE_STRUCTURE_TYPE_MUTABLE_GRAPH_STRIDES_DESC),
+    //    nullptr,
+    //    _command_id,
+    //    arg_index,
+    //    {0, 0, 0, 0, 0}
+    //};
 
-    if (strides.has_value()) {
-        std::cerr << "got custom strides\n";
-        for (size_t idx = 0; idx < strides.value().size(); idx++) {
-            strides_desc.userStrides[idx] = strides.value()[idx];
-        }
-        desc.pNext = &strides_desc;
-    }
+    //if (strides.has_value()) {
+    //    std::cerr << "got custom strides\n";
+    //    for (size_t idx = 0; idx < strides.value().size(); idx++) {
+    //        strides_desc.userStrides[idx] = strides.value()[idx];
+    //    }
+    //    desc.pNext = &strides_desc;
+    //}
 
     ze_mutable_commands_exp_desc_t mutable_commands_exp_desc_t = {ZE_STRUCTURE_TYPE_MUTABLE_COMMANDS_EXP_DESC,
                                                                   &desc,

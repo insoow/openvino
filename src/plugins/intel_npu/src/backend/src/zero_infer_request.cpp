@@ -845,7 +845,7 @@ void ZeroInferRequest::update_pipeline_if_memory_changed() {
             continue;
         }
 
-        if (zeroTensor->memory_address_changed()) {
+        //if (zeroTensor->memory_address_changed()) {
             _logger.debug("Update output graph descriptor with the new tensor");
             OPENVINO_ASSERT(zeroTensor->data(), "Empty buffer");
 
@@ -854,7 +854,7 @@ void ZeroInferRequest::update_pipeline_if_memory_changed() {
                                               zeroTensor->get_byte_size());
 
             zeroTensor->reset_memory_flag();
-        }
+        //}
 
         ++ioIndex;
     }

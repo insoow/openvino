@@ -128,10 +128,10 @@ void ZeGraphExtWrappers::setGraphArgumentValue(const GraphDescriptor& graphDescr
     THROW_ON_FAIL_FOR_LEVELZERO_EXT("zeGraphSetArgumentValue", result, _zeroInitStruct->getGraphDdiTable());
 }
 
-void ZeGraphExtWrappers::setGraphUserProperties(ze_graph_handle_t hGraph, uint32_t argIndex,
+void ZeGraphExtWrappers::setGraphUserProperties(const GraphDescriptor& graphDescriptor, uint32_t argIndex,
                                 ze_graph_argument_user_properties_header_t* pGraphArgumentUserProperties) {
     std::cerr << "calling zero init struct\n";
-    auto result = _zeroInitStruct->getGraphDdiTable().pfnSetGraphUserProperties(hGraph, argIndex, pGraphArgumentUserProperties);
+    auto result = _zeroInitStruct->getGraphDdiTable().pfnSetGraphUserProperties(graphDescriptor._handle, argIndex, pGraphArgumentUserProperties);
     THROW_ON_FAIL_FOR_LEVELZERO_EXT("zeSetGraphUserProperties", result, _zeroInitStruct->getGraphDdiTable());
 }
 
@@ -401,7 +401,7 @@ GraphDescriptor ZeGraphExtWrappers::getGraphDescriptor(void* blobData, size_t bl
  * the referenced attribute.
  * @returns A descriptor object containing the metadata converted in OpenVINO specific structures.
  */
-static IODescriptor getIODescriptor(const ze_graph_argument_properties_3_t& arg,
+static IODescriptor getIODescriptor(const ze_graph_argument_properties_4_t& arg,
                                     const std::optional<ze_graph_argument_metadata_t>& metadata) {
     auto logger = Logger::global().clone("getIODescriptor");
     ov::element::Type_t precision = zeroUtils::toOVElementType(arg.devicePrecision);
@@ -486,9 +486,9 @@ void ZeGraphExtWrappers::getMetadata(ze_graph_handle_t graphHandle,
                                      std::vector<IODescriptor>& inputs,
                                      std::vector<IODescriptor>& outputs) const {
     if (NotSupportArgumentMetadata(_graphExtVersion)) {
-        ze_graph_argument_properties_3_t arg = {};
+        ze_graph_argument_properties_4_t arg = {};
         _logger.debug("getMetadata - perform pfnGetArgumentProperties3");
-        auto result = _zeroInitStruct->getGraphDdiTable().pfnGetArgumentProperties3(graphHandle, index, &arg);
+        auto result = _zeroInitStruct->getGraphDdiTable().pfnGraphGetArgumentProperties4(graphHandle, index, &arg);
         THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetArgumentProperties3", result, _zeroInitStruct->getGraphDdiTable());
 
         switch (arg.type) {
@@ -504,9 +504,9 @@ void ZeGraphExtWrappers::getMetadata(ze_graph_handle_t graphHandle,
         }
         }
     } else {
-        ze_graph_argument_properties_3_t arg = {};
+        ze_graph_argument_properties_4_t arg = {};
         _logger.debug("getMetadata - perform pfnGetArgumentProperties3");
-        auto result = _zeroInitStruct->getGraphDdiTable().pfnGetArgumentProperties3(graphHandle, index, &arg);
+        auto result = _zeroInitStruct->getGraphDdiTable().pfnGraphGetArgumentProperties4(graphHandle, index, &arg);
         THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetArgumentProperties3", result, _zeroInitStruct->getGraphDdiTable());
 
         std::optional<ze_graph_argument_metadata_t> optionalMetadata = std::nullopt;

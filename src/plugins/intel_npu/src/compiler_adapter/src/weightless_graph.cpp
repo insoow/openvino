@@ -299,10 +299,10 @@ void WeightlessGraph::initialize(const Config& config) {
 
         _wgLogger.debug("performing pfnGetArgumentProperties3");
         for (uint32_t index = 0; index < props.numGraphArgs; ++index) {
-            ze_graph_argument_properties_3_t arg3{};
+            ze_graph_argument_properties_4_t arg3{};
             arg3.stype = ZE_STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTIES;
             auto result =
-                _zeroInitStruct->getGraphDdiTable().pfnGetArgumentProperties3(_initsGraphDesc.at(initIndex)._handle,
+                _zeroInitStruct->getGraphDdiTable().pfnGraphGetArgumentProperties4(_initsGraphDesc.at(initIndex)._handle,
                                                                               index,
                                                                               &arg3);
             THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetArgumentProperties3", result, _zeroInitStruct->getGraphDdiTable());
