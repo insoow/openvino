@@ -8,17 +8,13 @@
 
 #include <iostream>
 
-int main(int, char*) {
-try {
-    std::cout << "starting strided sample\n";
-
-    ov::Core core;
-
+template<typename T, ov::element::Type_t ovElemType>
+void stridedEltwiseTest(ov::Core& core) {
     const ov::Shape inputShape({1, 8, 12});
     const ov::Shape inputShapeSlice({1, 4, 6});
-    const ov::element::Type_t elemType = ov::element::Type_t::u8;
+    const ov::element::Type_t elemType = ovElemType;
 
-    uint8_t data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
@@ -27,7 +23,7 @@ try {
                       7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-    uint8_t sanityData[] = {1, 2, 3, 4, 5, 6,
+    T sanityData[] = {1, 2, 3, 4, 5, 6,
                             2, 2, 3, 4, 5, 6,
                             3, 2, 3, 4, 5, 6,
                             4, 2, 3, 4, 5, 6};
@@ -59,19 +55,19 @@ try {
 
     auto sanityInputRemoteTensor = remoteCtx.create_tensor(elemType, inputShapeSlice, sanity_params);
 
-    auto sanityCheckParam1 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
-    auto sanityCheckParam2 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
-    auto sanityCheckMultiply = std::make_shared<ov::op::v1::Multiply>(sanityCheckParam1, sanityCheckParam2);
-    const auto sanityCheckResults = ov::ResultVector{std::make_shared<ov::opset1::Result>(sanityCheckMultiply->output(0))};
-    auto sanityCheckModel = std::make_shared<ov::Model>(sanityCheckResults, ov::ParameterVector{sanityCheckParam1, sanityCheckParam2}, "EltwiseMultiply");
-    ov::CompiledModel compiled_sanitycheck_model = core.compile_model(sanityCheckModel, "NPU");
-    ov::InferRequest infer_sanitycheck_request = compiled_sanitycheck_model.create_infer_request();
+    auto param1 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
+    auto param2 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
+    auto multiply = std::make_shared<ov::op::v1::Multiply>(param1, param2);
+    const auto results = ov::ResultVector{std::make_shared<ov::opset1::Result>(multiply->output(0))};
+    auto multiplyModel = std::make_shared<ov::Model>(results, ov::ParameterVector{param1, param2}, "EltwiseMultiply");
+    ov::CompiledModel compiled_model = core.compile_model(multiplyModel, "NPU");
+    ov::InferRequest infer_request = compiled_model.create_infer_request();
 
-    infer_sanitycheck_request.set_input_tensor(0, sanityInputRemoteTensor);
-    infer_sanitycheck_request.set_input_tensor(1, sanityInputRemoteTensor);
-    infer_sanitycheck_request.infer();
-    auto outputSanityCheck = infer_sanitycheck_request.get_output_tensor(0);
-    auto outSanityData = outputSanityCheck.data<uint8_t>();
+    infer_request.set_input_tensor(0, sanityInputRemoteTensor);
+    infer_request.set_input_tensor(1, sanityInputRemoteTensor);
+    infer_request.infer();
+    auto outputSanityCheck = infer_request.get_output_tensor(0);
+    auto outSanityData = outputSanityCheck.data<T>();
     std::cout << "printing sanity output\n";
     size_t dataIdx1 = 0;
     for (size_t idx = 0; idx < 4; idx++) {
@@ -82,22 +78,10 @@ try {
         std::cout << "\n";
     }
 
-    auto param1 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
-    auto param2 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
-    auto multiply = std::make_shared<ov::op::v1::Multiply>(param1, param2);
-    multiply->get_output_tensor(0).set_names({"Multiply_Result"});
-
-    const auto results = ov::ResultVector{std::make_shared<ov::opset1::Result>(multiply->output(0))};
-    auto model = std::make_shared<ov::Model>(results, ov::ParameterVector{param1, param2}, "EltwiseMultiply");
-
-    ov::CompiledModel compiled_model = core.compile_model(model, "NPU");
-    ov::InferRequest infer_request = compiled_model.create_infer_request();
-
     auto outputTensor = infer_request.get_output_tensor(0);
-    auto outData = outputTensor.data<uint8_t>();
+    auto outData = outputTensor.data<T>();
 
     size_t dataIdx = 0;
-    uint8_t* inData;
 
     auto runU8EltwiseModelOnSlice = [&](ov::RemoteTensor& in1, ov::RemoteTensor& in2, char* tileName) -> void {
         infer_request.set_input_tensor(0, in1);
@@ -121,7 +105,7 @@ try {
     runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "HW tile4");
 
  {
-    uint8_t data[] = {1, 2, 3, 4, 5, 6,
+    T data[] = {1, 2, 3, 4, 5, 6,
                       2, 2, 3, 4, 5, 6,
                       3, 2, 3, 4, 5, 6,
                       4, 2, 3, 4, 5, 6,
@@ -150,7 +134,7 @@ try {
 
 
  {
-    uint8_t data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
@@ -176,7 +160,7 @@ try {
  {
     std::cout << "Split over C\n";
 
-    uint8_t data[] = {1, 2, 3, 4, 5, 6,
+    T data[] = {1, 2, 3, 4, 5, 6,
                       2, 2, 3, 4, 5, 6,
                       3, 2, 3, 4, 5, 6,
                       4, 2, 3, 4, 5, 6,
@@ -205,7 +189,7 @@ try {
   {
     std::cout << "Split over CH\n";
 
-    uint8_t data[] = {1, 2, 3, 4, 5, 6,
+    T data[] = {1, 2, 3, 4, 5, 6,
                       2, 2, 3, 4, 5, 6,
                       3, 2, 3, 4, 5, 6,
                       4, 2, 3, 4, 5, 6,
@@ -248,7 +232,7 @@ try {
  {
     std::cout << "Split over CHW\n";
 
-    uint8_t data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
@@ -303,7 +287,7 @@ try {
   {
     std::cout << "Split over CW\n";
 
-    uint8_t data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                       4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
@@ -334,8 +318,12 @@ try {
     runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "CW tile3");
     runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "CW tile4");
  }
+}
 
+void maxPoolTest(ov::Core& core) {
     std::cout << "MaxPool test\n";
+
+    auto remoteCtx = core.get_default_context("NPU");
 
     const ov::Shape maxPoolInputShape({1, 16, 108, 1280});
     const ov::Shape maxPoolSliceInputShape({1, 16, 36, 1280});
@@ -344,7 +332,7 @@ try {
     float* maxPoolData = new float[2211840];
 
     for (int idx = 0; idx < 2211840; idx++) {
-        maxPoolData[idx] = (idx % 256);
+        maxPoolData[idx] = static_cast<float>(idx % 256);
     }
 
     ov::AnyMap max_pool_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
@@ -378,7 +366,7 @@ try {
     auto outMaxPoolData = outputMaxPoolTensor.data<float>();
 
     std::cout << "printing max pool output 1\n";
-    dataIdx = 0;
+    size_t dataIdx = 0;
     for (size_t idx = 0; idx < 16; idx++) {
         for (size_t idx2 = 0; idx2 < 36; idx2++) {
             for (size_t idx3 = 0; idx3 < 1280; idx3++) {
@@ -421,7 +409,21 @@ try {
         }
         std::cout << "\n";
     }
+}
 
+int main(int, char*) {
+try {
+    std::cout << "starting strided sample\n";
+
+    ov::Core core;
+
+    std::cout << "u8 test\n";
+    stridedEltwiseTest<uint8_t, ov::element::Type_t::u8>(core);
+
+    std::cout << "f32 test\n";
+    stridedEltwiseTest<float, ov::element::Type_t::f32>(core);
+
+    //maxPoolTest(core);
 
 } catch (const std::exception& ex) {
     std::cout << ex.what() << std::endl;
