@@ -66,6 +66,7 @@ try {
     auto sanityCheckModel = std::make_shared<ov::Model>(sanityCheckResults, ov::ParameterVector{sanityCheckParam1, sanityCheckParam2}, "EltwiseMultiply");
     ov::CompiledModel compiled_sanitycheck_model = core.compile_model(sanityCheckModel, "NPU");
     ov::InferRequest infer_sanitycheck_request = compiled_sanitycheck_model.create_infer_request();
+
     infer_sanitycheck_request.set_input_tensor(0, sanityInputRemoteTensor);
     infer_sanitycheck_request.set_input_tensor(1, sanityInputRemoteTensor);
     infer_sanitycheck_request.infer();
@@ -92,70 +93,32 @@ try {
     ov::CompiledModel compiled_model = core.compile_model(model, "NPU");
     ov::InferRequest infer_request = compiled_model.create_infer_request();
 
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.infer();
-
     auto outputTensor = infer_request.get_output_tensor(0);
     auto outData = outputTensor.data<uint8_t>();
 
     size_t dataIdx = 0;
     uint8_t* inData;
 
-    std::cout << "printing tile1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
+    auto runU8EltwiseModelOnSlice = [&](ov::RemoteTensor& in1, ov::RemoteTensor& in2, char* tileName) -> void {
+        infer_request.set_input_tensor(0, in1);
+        infer_request.set_input_tensor(1, in2);
+        infer_request.infer();
+
+        std::cout << tileName << std::endl;
+        dataIdx = 0;
+        for (size_t idx = 0; idx < 4; idx++) {
+            for (size_t idx2 = 0; idx2 < 6; idx2++) {
+                std::cout << static_cast<int>(outData[dataIdx]) << " ";
+                dataIdx++;
+            }
         std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing tile2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
         }
-        std::cout << "\n";
-    }
+    };
 
-    infer_request.set_input_tensor(0, input1_roi3);
-    infer_request.set_input_tensor(1, input2_roi3);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing tile3\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi4);
-    infer_request.set_input_tensor(1, input2_roi4);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing tile4\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "HW tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "HW tile2");
+    runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "HW tile3");
+    runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "HW tile4");
 
  {
     uint8_t data[] = {1, 2, 3, 4, 5, 6,
@@ -181,35 +144,8 @@ try {
     ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
     ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
 
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over H tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over H tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "H tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "H tile2");
  }
 
 
@@ -233,35 +169,8 @@ try {
     ov::RemoteTensor input1_roi2(zeroMainRemoteTEnsorForWTiling, {0, 0, 6}, {1, 4, 12});
     ov::RemoteTensor input2_roi2(zeroMainRemoteTEnsorForWTiling, {0, 0, 6}, {1, 4, 12});
 
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over W tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over W tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "W tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "W tile2");
  }
 
  {
@@ -288,36 +197,9 @@ try {
     ov::RemoteTensor input2_roi1(zeroMainRemoteTEnsorForCTiling, {0, 0, 0}, {1, 4, 6});
     ov::RemoteTensor input1_roi2(zeroMainRemoteTEnsorForCTiling, {1, 0, 0}, {2, 4, 6});
     ov::RemoteTensor input2_roi2(zeroMainRemoteTEnsorForCTiling, {1, 0, 0}, {2, 4, 6});
-                      
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
 
-    std::cout << "printing split over C tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over C tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "C tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "C tile2");
  }
 
   {
@@ -356,66 +238,11 @@ try {
     ov::RemoteTensor input2_roi3(zeroMainRemoteTEnsorForCHTiling, {1, 0, 0}, {2, 4, 6});
     ov::RemoteTensor input1_roi4(zeroMainRemoteTEnsorForCHTiling, {1, 4, 0}, {2, 8, 6});
     ov::RemoteTensor input2_roi4(zeroMainRemoteTEnsorForCHTiling, {1, 4, 0}, {2, 8, 6});
-                      
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
 
-    std::cout << "printing split over CH tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CH tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi3);
-    infer_request.set_input_tensor(1, input2_roi3);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CH tile 3\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi4);
-    infer_request.set_input_tensor(1, input2_roi4);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CH tile 4\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "CH tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "CH tile2");
+    runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "CH tile3");
+    runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "CH tile4");
  }
 
  {
@@ -463,124 +290,14 @@ try {
     ov::RemoteTensor input1_roi8(zeroMainRemoteTEnsorForCHWTiling, {1, 4, 6}, {2, 8, 12});
     ov::RemoteTensor input2_roi8(zeroMainRemoteTEnsorForCHWTiling, {1, 4, 6}, {2, 8, 12});
 
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi3);
-    infer_request.set_input_tensor(1, input2_roi3);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 3\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi4);
-    infer_request.set_input_tensor(1, input2_roi4);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 4\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-    infer_request.set_input_tensor(0, input1_roi5);
-    infer_request.set_input_tensor(1, input2_roi5);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 5\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi6);
-    infer_request.set_input_tensor(1, input2_roi6);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 6\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi7);
-    infer_request.set_input_tensor(1, input2_roi7);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 7\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi8);
-    infer_request.set_input_tensor(1, input2_roi8);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CHW tile 8\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "CHW tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "CHW tile2");
+    runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "CHW tile3");
+    runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "CHW tile4");
+    runU8EltwiseModelOnSlice(input1_roi5, input2_roi5, "CHW tile1");
+    runU8EltwiseModelOnSlice(input1_roi6, input2_roi6, "CHW tile2");
+    runU8EltwiseModelOnSlice(input1_roi7, input2_roi7, "CHW tile3");
+    runU8EltwiseModelOnSlice(input1_roi8, input2_roi8, "CHW tile4");
  }
 
   {
@@ -611,66 +328,11 @@ try {
     ov::RemoteTensor input2_roi3(zeroMainRemoteTEnsorForCWTiling, {1, 0, 0}, {2, 4, 6});
     ov::RemoteTensor input1_roi4(zeroMainRemoteTEnsorForCWTiling, {1, 0, 6}, {2, 4, 12});
     ov::RemoteTensor input2_roi4(zeroMainRemoteTEnsorForCWTiling, {1, 0, 6}, {2, 4, 12});
-                      
-    infer_request.set_input_tensor(0, input1_roi1);
-    infer_request.set_input_tensor(1, input2_roi1);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CW tile 1\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi2);
-    infer_request.set_input_tensor(1, input2_roi2);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CW tile 2\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi3);
-    infer_request.set_input_tensor(1, input2_roi3);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CW tile 3\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
-
-    infer_request.set_input_tensor(0, input1_roi4);
-    infer_request.set_input_tensor(1, input2_roi4);
-    infer_request.set_output_tensor(0, outputTensor);
-    infer_request.infer();
-
-    std::cout << "printing split over CW tile 4\n";
-    dataIdx = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outData[dataIdx]) << " ";
-            dataIdx++;
-        }
-        std::cout << "\n";
-    }
+       
+    runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "CW tile1");
+    runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "CW tile2");
+    runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "CW tile3");
+    runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "CW tile4");
  }
 
     std::cout << "MaxPool test\n";
