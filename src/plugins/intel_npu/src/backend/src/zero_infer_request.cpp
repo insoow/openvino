@@ -453,9 +453,10 @@ void ZeroInferRequest::set_remote_data(const std::shared_ptr<ov::IRemoteTensor>&
             std::array<uint32_t, 5> userStrides;
             auto strides = remoteTensor->get_strides();
             auto stridesIt = strides.rbegin();
+            auto byteWidth = *stridesIt;
             for (auto idx = 0; idx < 5; idx++) {
                 if (idx < strides.size()) {
-                    userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                    userStrides[idx] = static_cast<uint32_t>(*stridesIt / byteWidth);
                     stridesIt++;
                     std::cerr << "setting user strides on input idx = " << idx << " value " << userStrides[idx] << std::endl;
                 } else {
@@ -965,9 +966,10 @@ void ZeroInferRequest::infer_async() {
         std::lock_guard<std::mutex> lock(_graph->get_mutex());
 
         if (!_pipelineIsCreated || _dynamicBatchValueChanged) {
+            std::cerr << "create pipeline\n";
             OV_ITT_TASK_NEXT(ZERO_INFER, "create_pipeline");
             create_pipeline();  // Reallocate pipeline if necessary
-            //_pipelineIsCreated = true;
+            _pipelineIsCreated = true;
             _dynamicBatchValueChanged = false;  // Reset reallocation flag
         } else {
             if (_initStructs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0)) {

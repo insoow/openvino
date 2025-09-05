@@ -138,9 +138,10 @@ Pipeline::Pipeline(const Config& config,
                     stridesItem.header.pNext = nullptr;
                     auto strides = input_tensors.at(io_index).at(i)->get_strides();
                     auto stridesIt = strides.rbegin();
+                    auto byteWidth = *stridesIt;
                     for (auto idx = 0; idx < 5; idx++) {
                         if (idx < strides.size()) {
-                            stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                            stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt / byteWidth);
                             stridesIt++;
                             std::cerr << "setting user strides on inputs idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
                         } else {
@@ -194,9 +195,10 @@ Pipeline::Pipeline(const Config& config,
                 stridesItem.header.pNext = nullptr;
                 auto strides = input_tensors.at(io_index).at(0)->get_strides();
                 auto stridesIt = strides.rbegin();
+                auto byteWidth = *stridesIt;
                 for (auto idx = 0; idx < 5; idx++) {
                     if (idx < strides.size()) {
-                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt / byteWidth);
                         stridesIt++;
                         std::cerr << "setting user strides on input idx = " << idx << " value " << stridesItem.userStrides[idx] << std::endl;
                     } else {
@@ -234,9 +236,10 @@ Pipeline::Pipeline(const Config& config,
                 stridesItem.header.pNext = nullptr;
                 auto strides = output_tensors.at(io_index)->get_strides();
                 auto stridesIt = strides.rbegin();
+                auto byteWidth = *stridesIt;
                 for (auto idx = 0; idx < 5; idx++) {
                     if (strides.size() < idx) {
-                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt);
+                        stridesItem.userStrides[idx] = static_cast<uint32_t>(*stridesIt / byteWidth);
                         stridesIt++;
                     } else {
                         stridesItem.userStrides[idx] = 0;

@@ -8,7 +8,7 @@
 
 #include <iostream>
 
-template<typename T, ov::element::Type_t ovElemType>
+template<typename T, typename presentationType, ov::element::Type_t ovElemType>
 void stridedEltwiseTest(ov::Core& core) {
     const ov::Shape inputShape({1, 8, 12});
     const ov::Shape inputShapeSlice({1, 4, 6});
@@ -63,31 +63,14 @@ void stridedEltwiseTest(ov::Core& core) {
     ov::CompiledModel compiled_model = core.compile_model(multiplyModel, "NPU");
     ov::InferRequest infer_request = compiled_model.create_infer_request();
 
-    infer_request.set_input_tensor(0, sanityInputRemoteTensor);
-    infer_request.set_input_tensor(1, sanityInputRemoteTensor);
-    infer_request.infer();
-    auto outputSanityCheck = infer_request.get_output_tensor(0);
-    auto outSanityData = outputSanityCheck.data<T>();
-    std::cout << "printing sanity output\n";
-    size_t dataIdx1 = 0;
-    for (size_t idx = 0; idx < 4; idx++) {
-        for (size_t idx2 = 0; idx2 < 6; idx2++) {
-            std::cout << static_cast<int>(outSanityData[dataIdx1]) << " ";
-            dataIdx1++;
-        }
-        std::cout << "\n";
-    }
-
     auto outputTensor = infer_request.get_output_tensor(0);
-    auto outData = outputTensor.data<T>();
+    auto outData = outputTensor.data<presentationType>();
 
-    size_t dataIdx = 0;
-
-    auto runU8EltwiseModelOnSlice = [&](ov::RemoteTensor& in1, ov::RemoteTensor& in2, char* tileName) -> void {
+    auto runU8EltwiseModelOnSlice = [&](ov::Tensor& in1, ov::Tensor& in2, char* tileName) -> void {
         infer_request.set_input_tensor(0, in1);
         infer_request.set_input_tensor(1, in2);
         infer_request.infer();
-
+        size_t dataIdx = 0;
         std::cout << tileName << std::endl;
         dataIdx = 0;
         for (size_t idx = 0; idx < 4; idx++) {
@@ -98,6 +81,8 @@ void stridedEltwiseTest(ov::Core& core) {
         std::cout << "\n";
         }
     };
+
+    runU8EltwiseModelOnSlice(sanity_input1, sanity_input1, "sanity");
 
     runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "HW tile1");
     runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "HW tile2");
@@ -418,10 +403,20 @@ try {
     ov::Core core;
 
     std::cout << "u8 test\n";
-    stridedEltwiseTest<uint8_t, ov::element::Type_t::u8>(core);
+    stridedEltwiseTest<uint8_t, uint8_t, ov::element::Type_t::u8>(core);
+
+    std::cout << "u32 test\n";
+    stridedEltwiseTest<uint32_t, uint32_t, ov::element::Type_t::u32>(core);
+
+    std::cout << "u16 test\n";
+    stridedEltwiseTest<uint8_t, uint16_t, ov::element::Type_t::u16>(core);
 
     std::cout << "f32 test\n";
-    stridedEltwiseTest<float, ov::element::Type_t::f32>(core);
+    stridedEltwiseTest<float, float, ov::element::Type_t::f32>(core);
+
+    // u64 seems to be broken even on sanity.
+    //std::cout << "u64 test\n";
+    //stridedEltwiseTest<uint64_t, uint64_t, ov::element::Type_t::u64>(core);
 
     //maxPoolTest(core);
 
