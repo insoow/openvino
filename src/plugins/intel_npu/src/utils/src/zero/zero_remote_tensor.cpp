@@ -219,8 +219,11 @@ void ZeroRemoteTensor::allocate(const size_t bytes) {
         THROW_ON_FAIL_FOR_LEVELZERO(
             "zeMemAllocHost",
             zeMemAllocHost(_init_structs->getContext(), &desc, size, utils::STANDARD_PAGE_SIZE, &_data));
-        std::cerr << "copying data to " << _data << "from " << _mem;
-        std::memcpy(_data, _mem, bytes);
+
+        if (_mem) {
+            std::cerr << "copying data to " << _data << "from " << _mem;
+            std::memcpy(_data, _mem, bytes);
+        }
         break;
     }
     case MemType::SHARED_BUF: {

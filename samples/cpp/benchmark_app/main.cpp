@@ -1297,6 +1297,11 @@ int main(int argc, char* argv[]) {
                 for (size_t j = 0; j < count && !skipDump; j++) {
                     auto outputTensor = inferRequestsQueue.requests[i]->get_output_tensor(j);
                     // print 10 numbers from the output
+                    auto output_shape = outputTensor.get_shape();
+                    for (auto& d : output_shape) {
+                        std::cout << d << " ";
+                    }
+                    std::cout << std::endl;
                     std::cout << "First 10 numbers of the output: ";
 #    ifdef _WIN32
                     for (size_t x = 0; x < min(outputTensor.get_size(), static_cast<size_t>(10)) && !skipDump; x++) {
@@ -1327,11 +1332,79 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     std::cout << std::endl;
+
+
+                    std::ostringstream oss;
+                    oss << "output_" << j << ".txt";
+                    std::ofstream o(oss.str().c_str());
+                    std::ofstream o2(oss.str() + ".index");
+                    bool transpose = false;
+#    ifdef _WIN32
+                    o << "output size: " << outputTensor.get_size() << std::endl;
+                    for (size_t x = 0; x < outputTensor.get_size(); x++) {
+#    else
+                    for (size_t x = 0; x < std::min(outputTensor.get_size(), static_cast<size_t>(10)) && !skipDump;
+                         x++) {
+#    endif
+                        if((x % ((transpose)? 16: 2560)) == 0 )
+                        {
+                            if (transpose == true) {
+                                size_t z = (x / (16 * 2560)) % 1000;
+                                size_t y = (x / 16) % 2560;
+                                o << "OUTPUT: " << z << ","  << y << ": ";
+                            }
+                            else
+                            {
+                                size_t z = (x / (1000 * 2560)) % 16;
+                                size_t y = (x / 2560) % 1000;
+                                o << "OUTPUT: " << z << ","  << y << ": ";
+                            }
+                        }
+                        switch (outputTensor.get_element_type()) {
+                        case ov::element::f16:
+                            o << outputTensor.data<ov::float16>()[x] << " ";
+                            break;
+                        case ov::element::f32:
+                            o << outputTensor.data<float>()[x] << " ";
+                            break;
+                        case ov::element::i8:
+                            o << outputTensor.data<uint8_t>()[x] << " ";
+                            break;
+                        case ov::element::i32:
+                            o << outputTensor.data<uint32_t>()[x] << " ";
+                            break;
+                        case ov::element::i64:
+                            o << outputTensor.data<uint64_t>()[x] << " ";
+                            break;
+                        default:
+                            o << "Tensor element type " << outputTensor.get_element_type().to_string()
+                                      << " not support dump" << std::endl;
+                        }
+
+                        if (transpose == true) {
+                            if( ((x + 1) % 16) == 0) o << std::endl;
+                        }
+                        else {
+                            if( ((x + 1) % 2560) == 0) o << std::endl;
+                        }
+                             
+                    }
+
+                    o.flush();
+                    o.close();
+                    o2.flush();
+                    o2.close();
                 }
+                
 
                 size_t inputCount = compiledModel.inputs().size();
                 for (size_t k = 0; k < inputCount && !skipDump; k++) {
                     auto inputTensor = inferRequestsQueue.requests[i]->get_input_tensor(k);
+                    auto input_shape = inputTensor.get_shape();
+                    for (auto& d : input_shape) {
+                        std::cout << d << " ";
+                    }
+                    std::cout << std::endl;
                     // print 10 numbers from the output
                     std::cout << "First 10 numbers of the input: ";
 #    ifdef _WIN32

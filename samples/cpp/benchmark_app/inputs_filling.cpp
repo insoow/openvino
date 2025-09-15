@@ -257,7 +257,7 @@ ov::Tensor create_tensor_random(const benchmark_app::InputInfo& inputInfo,
     std::mt19937 gen(static_cast<unsigned int>(std::chrono::system_clock::now().time_since_epoch().count()));
     uniformDistribution<T2> distribution(rand_min, rand_max);
     for (size_t i = 0; i < tensor_size; i++) {
-        data[i] = static_cast<T>(distribution(gen));
+        data[i] = i % 2560;
     }
 
     return tensor;
