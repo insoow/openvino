@@ -10,50 +10,10 @@
 
 template<typename T, typename presentationType, ov::element::Type_t ovElemType>
 void stridedEltwiseTest(ov::Core& core) {
-    const ov::Shape inputShape({1, 8, 12});
     const ov::Shape inputShapeSlice({1, 4, 6});
     const ov::element::Type_t elemType = ovElemType;
 
-    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                6, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-                8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-
-    T sanityData[] = {1, 2, 3, 4, 5, 6,
-                        2, 2, 3, 4, 5, 6,
-                        3, 2, 3, 4, 5, 6,
-                        4, 2, 3, 4, 5, 6};
-
-    ov::AnyMap main_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
-                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
-                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(data)}};
-
-    ov::AnyMap sanity_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
-                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
-                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(sanityData)}};
-
-    ov::Tensor input1(elemType, inputShape, data);
-    ov::Tensor input_temp(elemType, inputShapeSlice);
-
-    ov::Tensor sanity_input1(elemType, inputShapeSlice, sanityData);
-
     auto remoteCtx = core.get_default_context("NPU");
-    auto zeroMainRemoteTensor = remoteCtx.create_tensor(elemType, inputShape, main_params);
-
-    ov::RemoteTensor input1_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
-    ov::RemoteTensor input2_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
-    ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
-    ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
-    ov::RemoteTensor input1_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
-    ov::RemoteTensor input2_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
-    ov::RemoteTensor input1_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
-    ov::RemoteTensor input2_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
-
-    auto sanityInputRemoteTensor = remoteCtx.create_tensor(elemType, inputShapeSlice, sanity_params);
 
     auto param1 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
     auto param2 = std::make_shared<ov::op::v0::Parameter>(elemType, inputShapeSlice);
@@ -82,22 +42,58 @@ void stridedEltwiseTest(ov::Core& core) {
         }
     };
 
+{
+    T sanityData[] = {1, 2, 3, 4, 5, 6,
+                        2, 2, 3, 4, 5, 6,
+                        3, 2, 3, 4, 5, 6,
+                        4, 2, 3, 4, 5, 6};
+
+    ov::Tensor sanity_input1(elemType, inputShapeSlice, sanityData);
+
     runU8EltwiseModelOnSlice(sanity_input1, sanity_input1, "sanity");
+}
+
+{
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                6, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+
+    ov::AnyMap main_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(data)}};
+    const ov::Shape inputShape({1, 8, 12});
+    auto zeroMainRemoteTensor = remoteCtx.create_tensor(elemType, inputShape, main_params);
+
+    ov::RemoteTensor input1_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input2_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input1_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input2_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input1_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
+    ov::RemoteTensor input2_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
 
     runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "HW tile1");
     runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "HW tile2");
     runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "HW tile3");
     runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "HW tile4");
+}
 
  {
     T data[] = {1, 2, 3, 4, 5, 6,
-                      2, 2, 3, 4, 5, 6,
-                      3, 2, 3, 4, 5, 6,
-                      4, 2, 3, 4, 5, 6,
-                      5, 2, 3, 4, 5, 6,
-                      6, 2, 3, 4, 5, 6,
-                      7, 2, 3, 4, 5, 6,
-                      8, 2, 3, 4, 5, 6};
+                2, 2, 3, 4, 5, 6,
+                3, 2, 3, 4, 5, 6,
+                4, 2, 3, 4, 5, 6,
+                5, 2, 3, 4, 5, 6,
+                6, 2, 3, 4, 5, 6,
+                7, 2, 3, 4, 5, 6,
+                8, 2, 3, 4, 5, 6};
 
     const ov::Shape inputShape({1, 8, 6});
 
@@ -108,10 +104,10 @@ void stridedEltwiseTest(ov::Core& core) {
     auto zeroMainRemoteTEnsorForWTiling = remoteCtx.create_tensor(elemType, inputShape, main_params_h_tiling);
 
     std::cout << "tile only over H\n";
-    ov::RemoteTensor input1_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
-    ov::RemoteTensor input2_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
-    ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
-    ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input1_roi1(zeroMainRemoteTEnsorForWTiling, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input2_roi1(zeroMainRemoteTEnsorForWTiling, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input1_roi2(zeroMainRemoteTEnsorForWTiling, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input2_roi2(zeroMainRemoteTEnsorForWTiling, {0, 4, 0}, {1, 8, 6});
 
     runU8EltwiseModelOnSlice(input1_roi1, input2_roi1, "H tile1");
     runU8EltwiseModelOnSlice(input1_roi2, input2_roi2, "H tile2");
@@ -303,6 +299,71 @@ void stridedEltwiseTest(ov::Core& core) {
     runU8EltwiseModelOnSlice(input1_roi3, input2_roi3, "CW tile3");
     runU8EltwiseModelOnSlice(input1_roi4, input2_roi4, "CW tile4");
  }
+
+    auto runU8EltwiseModelOnSliceWithOutputSlice = [&](ov::Tensor& in1, ov::Tensor& in2, ov::Tensor& out) -> void {
+        infer_request.set_input_tensor(0, in1);
+        infer_request.set_input_tensor(1, in2);
+        infer_request.set_output_tensor(0, out);
+        infer_request.infer();
+    };
+
+{
+    T data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                4, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                6, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+
+    ov::AnyMap main_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::INPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(data)}};
+
+    ov::AnyMap main_output_params = {{ov::intel_npu::mem_type.name(), ov::intel_npu::MemType::L0_INTERNAL_BUF},
+                         {ov::intel_npu::tensor_type.name(), {ov::intel_npu::TensorType::OUTPUT}},
+                         {ov::intel_npu::mem_handle.name(), reinterpret_cast<void*>(data)}};
+
+    const ov::Shape inputShape({1, 8, 12});
+    auto zeroMainRemoteTensor = remoteCtx.create_tensor(elemType, inputShape, main_params);
+    auto zeroMainOutputTensor = remoteCtx.create_tensor(elemType, inputShape, main_params);
+
+    ov::RemoteTensor input1_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input2_roi1(zeroMainRemoteTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor input1_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input2_roi2(zeroMainRemoteTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor input1_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input2_roi3(zeroMainRemoteTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor input1_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
+    ov::RemoteTensor input2_roi4(zeroMainRemoteTensor, {0, 4, 6}, {1, 8, 12});
+
+    ov::RemoteTensor output_roi1(zeroMainOutputTensor, {0, 0, 0}, {1, 4, 6});
+    ov::RemoteTensor output_roi2(zeroMainOutputTensor, {0, 4, 0}, {1, 8, 6});
+    ov::RemoteTensor output_roi3(zeroMainOutputTensor, {0, 0, 6}, {1, 4, 12});
+    ov::RemoteTensor output_roi4(zeroMainOutputTensor, {0, 4, 6}, {1, 8, 12});
+
+    runU8EltwiseModelOnSliceWithOutputSlice(input1_roi1, input2_roi1, output_roi1);
+    runU8EltwiseModelOnSliceWithOutputSlice(input1_roi2, input2_roi2, output_roi2);
+    runU8EltwiseModelOnSliceWithOutputSlice(input1_roi3, input2_roi3, output_roi3);
+    runU8EltwiseModelOnSliceWithOutputSlice(input1_roi4, input2_roi4, output_roi4);
+
+    ov::Tensor output(elemType, inputShape, data);
+    std::cerr << "copying data\n";
+    zeroMainOutputTensor.copy_to(output);
+    std::cerr << "getting data\n";
+    auto outData = output.data<presentationType>();
+    std::cerr << "displaying data\n";
+    for (size_t idx = 0; idx < 8; idx++) {
+        for (size_t w_idx = 0; w_idx < 12; w_idx++) {
+            std::cout << outData[(idx * 12) + w_idx] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+}
+
 }
 
 void maxPoolTest(ov::Core& core) {

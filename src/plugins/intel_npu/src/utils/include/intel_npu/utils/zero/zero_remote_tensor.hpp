@@ -103,6 +103,8 @@ private:
     bool _mmaped_file_support = false;
 
     ov::Tensor _mmap_tensor;
+
+    size_t _size = 0;
 };
 
 inline bool is_remote_tensor(const std::shared_ptr<ov::ITensor>& tensor) {

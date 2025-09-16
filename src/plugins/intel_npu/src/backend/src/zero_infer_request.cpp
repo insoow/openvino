@@ -953,7 +953,6 @@ void ZeroInferRequest::infer() {
     if (_config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
         OPENVINO_THROW("Only start async is supported when RUN_INFERENCES_SEQUENTIALLY is enabled!");
     }
-
     infer_async();
     get_result();
 }
@@ -1133,10 +1132,14 @@ void ZeroInferRequest::get_result() {
         }
 
         auto userRemoteTensor = std::dynamic_pointer_cast<ZeroRemoteTensor>(userTensor._ptr);
-        void* userBuffer = !userRemoteTensor ? userTensor->data() : userRemoteTensor->get_original_memory();
+        auto userRealRemote = std::dynamic_pointer_cast<ov::IRemoteTensor>(userTensor._ptr);
+        void* userBuffer = nullptr;
+        if (!userRealRemote) {
+            userBuffer = !userRemoteTensor ? userTensor->data() : userRemoteTensor->get_original_memory();
+        }
 
         const std::shared_ptr<ov::ITensor>& levelZeroTensor = _levelZeroOutputTensors.at(outputIndex);
-        if (!is_remote_tensor(levelZeroTensor)) {
+        if (!is_remote_tensor(levelZeroTensor) && !userRealRemote) {
             void* levelZeroBuffer = levelZeroTensor->data();
             if (userBuffer == nullptr || levelZeroBuffer == nullptr) {
                 OPENVINO_THROW("Empty buffer");

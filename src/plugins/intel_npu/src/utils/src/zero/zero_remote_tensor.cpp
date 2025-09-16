@@ -74,6 +74,7 @@ ZeroRemoteTensor::ZeroRemoteTensor(const std::shared_ptr<ov::IRemoteContext>& co
         }
     }
 
+    _size = *byte_size;
     allocate(*byte_size);
 }
 
@@ -349,8 +350,8 @@ ze_context_handle_t ZeroRemoteTensor::get_zero_context_handle() const {
 }
 
  void ZeroRemoteTensor::copy_to(const std::shared_ptr<ov::ITensor>& dst, size_t src_offset, size_t dst_offset, const ov::Shape& roi_shape) const {
-    std::cerr << "copying zero tensor\n";
-    //std::memcpy(reinterpret_cast<void*>(reinterpret_cast<unsigned char*>(dst->data()) + dst_offset), reinterpret_cast<void*>(reinterpret_cast<unsigned char*>(_data) + src_offset), bytes);
+    std::cerr << "copying zero tensor size " << _size << std::endl;
+    std::memcpy(reinterpret_cast<void*>(dst->data()), reinterpret_cast<void*>(_data), _size);
  }
 
 }  // namespace intel_npu
