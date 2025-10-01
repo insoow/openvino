@@ -93,6 +93,15 @@ public:
      */
     void initialize_states();
 
+    std::shared_ptr<ov::ITensor> allocate_tensor(const IODescriptor& descriptor,
+                                                               const size_t index,
+                                                               const bool isInput,
+                                                               const ov::Allocator& allocator,
+                                                               const std::optional<std::size_t> batchSize) const;
+
+    std::shared_ptr<ov::ITensor> create_tensor(ov::element::Type type,
+                                                             const ov::Shape& shape,
+                                                             const ov::Allocator& allocator) const;
 protected:
     /**
      * @see ov::ISyncInferRequest

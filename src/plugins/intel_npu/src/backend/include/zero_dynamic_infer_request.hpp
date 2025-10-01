@@ -76,9 +76,10 @@ private:
     std::shared_ptr<ov::ITensor>& get_level_zero_input(size_t index, size_t tensorNo = 0) const;
     std::vector<std::shared_ptr<ov::ITensor>>& get_level_zero_inputs(size_t index) const;
 
+    /// NEED?
     std::shared_ptr<ov::ITensor> create_tensor(ov::element::Type type,
                                                const ov::Shape& shape,
-                                               const ov::Allocator& allocator = {}) const override;
+                                               const ov::Allocator& allocator = {}) const;
 
     void add_state(const IODescriptor& descriptor, size_t tensorIndex) const override;
 

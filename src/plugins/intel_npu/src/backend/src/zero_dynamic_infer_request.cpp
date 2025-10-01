@@ -1206,6 +1206,7 @@ std::vector<ov::ProfilingInfo> ZeroDynamicInferRequest::get_profiling_info() con
     return _pipeline->get_profiling_info();
 }
 
+// INSOO NEED?
 std::shared_ptr<ov::ITensor> ZeroDynamicInferRequest::create_tensor(ov::element::Type type,
                                                                     const ov::Shape& shape,
                                                                     const ov::Allocator& allocator) const {
