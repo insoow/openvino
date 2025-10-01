@@ -1411,6 +1411,7 @@ struct WS_COMPILE_CALL_NUMBER final : OptionBase<WS_COMPILE_CALL_NUMBER, uint32_
     }
 };
 
+
 struct USE_BASE_MODEL_SERIALIZER final : OptionBase<USE_BASE_MODEL_SERIALIZER, bool> {
     static std::string_view key() {
         return ov::intel_npu::use_base_model_serializer.name();
@@ -1422,6 +1423,58 @@ struct USE_BASE_MODEL_SERIALIZER final : OptionBase<USE_BASE_MODEL_SERIALIZER, b
 
     static OptionMode mode() {
         return OptionMode::CompileTime;
+    }
+};
+
+struct INPUTS_WITH_DYNAMIC_STRIDES final : OptionBase<INPUTS_WITH_DYNAMIC_STRIDES, std::vector<int>> {
+    static std::string_view key() {
+        return ov::inputs_with_dynamic_strides.name();
+    }
+
+    static constexpr std::string_view getTypeName() {
+        return "std::vector<int>";
+    }
+
+    static std::vector<int> defaultValue() {
+        return {};
+    }
+
+    static bool isPublic() {
+        return true;
+    }
+
+    static ov::PropertyMutability mutability() {
+        return ov::PropertyMutability::RW;
+    }
+
+    static OptionMode mode() {
+        return OptionMode::Both;
+    }
+};
+
+struct OUTPUTS_WITH_DYNAMIC_STRIDES final : OptionBase<OUTPUTS_WITH_DYNAMIC_STRIDES, std::vector<int>> {
+    static std::string_view key() {
+        return ov::outputs_with_dynamic_strides.name();
+    }
+
+    static constexpr std::string_view getTypeName() {
+        return "std::vector<int>";
+    }
+
+    static std::vector<int> defaultValue() {
+        return {};
+    }
+
+    static bool isPublic() {
+        return true;
+    }
+
+    static ov::PropertyMutability mutability() {
+        return ov::PropertyMutability::RW;
+    }
+
+    static OptionMode mode() {
+        return OptionMode::Both;
     }
 };
 
