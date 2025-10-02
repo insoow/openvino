@@ -238,7 +238,9 @@ void Pipeline::reset() const {
     _logger.debug("Pipeline - rest() completed");
 };
 
-void Pipeline::update_graph_arguments(uint32_t arg_index, const void* arg_data, size_t byte_size) {
+void Pipeline::update_graph_arguments(uint32_t arg_index, const void* arg_data, size_t byte_size,
+                                            [[maybe_unused]] const ov::Strides& strides,
+                                            [[maybe_unused]] const ov::Shape& shapes) {
     OV_ITT_TASK_CHAIN(ZERO_EXECUTOR_IP_UMCL, itt::domains::LevelZeroBackend, "Pipeline", "updateCommandList");
     _logger.debug("Pipeline - updateCommandList");
 

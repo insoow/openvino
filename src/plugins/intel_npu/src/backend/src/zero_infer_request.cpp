@@ -419,7 +419,9 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                                                   ? _graph->get_input_descriptors().at(foundPort.idx).idx
                                                   : _graph->get_output_descriptors().at(foundPort.idx).idx,
                                               levelZeroTensor->data(),
-                                              levelZeroTensor->get_byte_size());
+                                              levelZeroTensor->get_byte_size(),
+                                              levelZeroTensor->get_strides(),
+                                              levelZeroTensor->get_shape());
         }
     }
     // If command list updates are not supported, fallback to copying tensors every time.
@@ -618,7 +620,9 @@ void ZeroInferRequest::update_pipeline_if_memory_changed() {
 
             _pipeline->update_graph_arguments(_graph->get_input_descriptors().at(ioIndex).idx,
                                               levelZeroTensor.at(SINGLE_TENSOR)->data(),
-                                              levelZeroTensor.at(SINGLE_TENSOR)->get_byte_size());
+                                              levelZeroTensor.at(SINGLE_TENSOR)->get_byte_size(),
+                                              levelZeroTensor.at(SINGLE_TENSOR)->get_strides(),
+                                              levelZeroTensor.at(SINGLE_TENSOR)->get_shape());
 
             if (!inputDescriptor.isStateInput) {
                 levelZeroTensor.at(SINGLE_TENSOR)->reset_memory_flag();
@@ -650,7 +654,9 @@ void ZeroInferRequest::update_pipeline_if_memory_changed() {
 
             _pipeline->update_graph_arguments(_graph->get_output_descriptors().at(ioIndex).idx,
                                               levelZeroTensor->data(),
-                                              levelZeroTensor->get_byte_size());
+                                              levelZeroTensor->get_byte_size(),
+                                              levelZeroTensor->get_strides(),
+                                              levelZeroTensor->get_shape());
 
             levelZeroTensor->reset_memory_flag();
         }
@@ -681,12 +687,16 @@ void ZeroInferRequest::update_states_if_memory_changed() {
 
                 _pipeline->update_graph_arguments(_graphInputDescriptors.at(zeroState->get_tensor_index()).idx,
                                                   get_level_zero_input(zeroState->get_tensor_index())->data(),
-                                                  get_level_zero_input(zeroState->get_tensor_index())->get_byte_size());
+                                                  get_level_zero_input(zeroState->get_tensor_index())->get_byte_size(),
+                                                  get_level_zero_input(zeroState->get_tensor_index())->get_strides(),
+                                                  get_level_zero_input(zeroState->get_tensor_index())->get_shape());
 
                 _pipeline->update_graph_arguments(
                     _graphOutputDescriptors.at(zeroState->get_related_tensor_index()).idx,
                     _levelZeroOutputTensors.at(zeroState->get_related_tensor_index())->data(),
-                    _levelZeroOutputTensors.at(zeroState->get_related_tensor_index())->get_byte_size());
+                    _levelZeroOutputTensors.at(zeroState->get_related_tensor_index())->get_byte_size(),
+                    _levelZeroOutputTensors.at(zeroState->get_related_tensor_index())->get_strides(),
+                    _levelZeroOutputTensors.at(zeroState->get_related_tensor_index())->get_shape());
             }
         }
     }
