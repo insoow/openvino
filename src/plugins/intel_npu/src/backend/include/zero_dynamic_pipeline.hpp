@@ -7,7 +7,6 @@
 #    include "intel_npu/utils/zero/zero_utils.hpp"
 #    include "intel_npu/utils/zero/zero_wrappers.hpp"
 #    include "irgraph.hpp"
-#    include "zero_memory.hpp"
 #    include "zero_pipeline.hpp"
 #    include "zero_profiling.hpp"
 #    include "zero_tensor.hpp"
@@ -150,8 +149,8 @@ public:
     DynamicPipeline(const Config& config,
                     const std::shared_ptr<ZeroInitStructsHolder>& init_structs,
                     const std::shared_ptr<IGraph>& graph,
-                    const std::vector<std::vector<std::shared_ptr<ov::ITensor>>>& input_tensors,
-                    const std::vector<std::shared_ptr<ov::ITensor>>& output_tensors,
+                    const std::vector<std::vector<std::shared_ptr<ZeroTensor>>>& input_tensors,
+                    const std::vector<std::shared_ptr<ZeroTensor>>& output_tensors,
                     size_t batch_size = 1);
 
     DynamicPipeline(const DynamicPipeline&) = delete;
@@ -176,8 +175,8 @@ public:
     virtual std::vector<ov::ProfilingInfo> get_profiling_info() const;
 
 protected:
-    const std::vector<std::vector<std::shared_ptr<ov::ITensor>>> _levelZeroInputTensors;
-    const std::vector<std::shared_ptr<ov::ITensor>> _levelZeroOutputTensors;
+    const std::vector<std::vector<std::shared_ptr<ZeroTensor>>> _levelZeroInputTensors;
+    const std::vector<std::shared_ptr<ZeroTensor>> _levelZeroOutputTensors;
     std::vector<std::unique_ptr<PipelinedCommandLists>> _command_lists;
 };
 

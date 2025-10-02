@@ -39,7 +39,9 @@ public:
 
     virtual void reset() const;
 
-    virtual void update_graph_arguments(uint32_t arg_index, const void* arg_data, size_t byte_size, std::optional<std::array<uint32_t, 5>> strides = std::nullopt);
+    virtual void update_graph_arguments(uint32_t arg_index, const void* arg_data, size_t byte_size,
+        [[maybe_unused]] const ov::Strides& strides,
+        [[maybe_unused]] const ov::Shape& shapes);
 
     virtual void update_graph_arguments_batching(uint32_t arg_index, const void* arg_data, size_t batch_index);
 
