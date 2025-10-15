@@ -126,18 +126,6 @@ ZeroDynamicInferRequest::ZeroDynamicInferRequest(const std::shared_ptr<ZeroInitS
       _levelZeroOutputTensors(_metadata.outputs.size(), nullptr) {
     _logger.debug("ZeroDynamicInferRequest::ZeroDynamicInferRequest - SyncInferRequest");
 
-    ze_device_external_memory_properties_t desc = {};
-    desc.stype = ZE_STRUCTURE_TYPE_DEVICE_EXTERNAL_MEMORY_PROPERTIES;
-    auto res = zeDeviceGetExternalMemoryProperties(_initStructs->getDevice(), &desc);
-    if (res == ZE_RESULT_SUCCESS) {
-        if (desc.memoryAllocationImportTypes & ZE_EXTERNAL_MEMORY_TYPE_FLAG_STANDARD_ALLOCATION) {
-            _externalMemoryStandardAllocationSupported = true;
-            _logger.debug("externalMemoryStandardAllocation supported is true");
-        } else {
-            _logger.debug("externalMemoryStandardAllocation supported is false");
-        }
-    }
-
     _logger.debug(
         "ZeroDynamicInferRequest::ZeroDynamicInferRequest - checking level zero attributes and allocating tensors");
 
@@ -427,9 +415,9 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
             OV_ITT_TASK_NEXT(ZERO_SET_TENSOR, "create zero tensor");
             // Try to use the user tensor directly if its underlying data is already allocated in the same Level Zero
             // context.
-            levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, tensor, _config);
+            levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, _config, tensor);
             updateCommandListArg = true;
-        } catch (const ZeroTensorException&) {
+        } catch (const ZeroMemException&) {
             // Check if the current Level Zero tensor was previously shared with the user. If so, it cannot be reused;
             // allocate a new tensor to back up the user tensor (which cannot be imported or used directly).
             if (_dynamicBatchValueChanged || levelZeroTensor == nullptr || !levelZeroTensor->can_be_reused()) {
@@ -515,8 +503,8 @@ void ZeroDynamicInferRequest::set_tensors(const ov::Output<const ov::Node>& port
                 OV_ITT_TASK_NEXT(ZERO_SET_TENSORS, "create zero tensor");
 
                 get_level_zero_input(foundPort.idx, i) =
-                    std::make_shared<ZeroTensor>(_initStructs, tensors.at(i), _config);
-            } catch (const ZeroTensorException&) {
+                    std::make_shared<ZeroTensor>(_initStructs, _config, tensors.at(i));
+            } catch (const ZeroMemException&) {
                 _logger.debug("ZeroInferRequest::set_tensors - allocate locally L0 tensor");
                 OV_ITT_TASK_NEXT(ZERO_SET_TENSORS, "allocate tensor");
 
