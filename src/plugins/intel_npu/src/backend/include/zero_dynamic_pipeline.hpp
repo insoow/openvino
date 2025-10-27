@@ -143,6 +143,12 @@ struct DynamicPipeline : public Pipeline {
         void appendSignalEvent(std::shared_ptr<Event>& event) {
             event->AppendSignalEvent(**_commandLists.rbegin());
         }
+
+        void reset() {
+            for (auto& cmdList : _commandLists) {
+                cmdList->reset();
+            }
+        }
     };
 
 public:
