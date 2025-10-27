@@ -132,8 +132,10 @@ Pipeline::Pipeline(const Config& config,
             _command_lists.at(i)->appendNpuTimestamp(reinterpret_cast<uint64_t*>(_npu_profiling->npu_ts_infer_start));
         }
 
+        //for (int j = 0; j < 50; ++j) {
         _command_lists.at(i)->appendGraphExecute(static_cast<ze_graph_handle_t>(graph->get_handle()),
-                                                 _profiling_query ? _profiling_query->getHandle() : nullptr);
+                                                     _profiling_query ? _profiling_query->getHandle() : nullptr);
+        //}
 
         /// append timestamp command if feature was activated
         if (_npu_profiling != nullptr) {
