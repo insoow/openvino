@@ -142,7 +142,7 @@ constexpr uint32_t METADATA_VERSION_2_0{MetadataBase::make_version(2, 0)};
 constexpr uint32_t METADATA_VERSION_2_1{MetadataBase::make_version(2, 1)};
 constexpr uint32_t METADATA_VERSION_2_2{MetadataBase::make_version(2, 2)};
 constexpr uint32_t METADATA_VERSION_2_3{MetadataBase::make_version(2, 3)};
-constexpr uint32_t METADATA_VERSION_2_3{MetadataBase::make_version(2, 4)};
+constexpr uint32_t METADATA_VERSION_2_4{MetadataBase::make_version(2, 4)};
 
 /**
  * @brief Current metadata version.
@@ -332,7 +332,7 @@ public:
 
     std::optional<std::vector<ov::Layout>> get_output_layouts() const override;
 
-private:
+protected:
     std::optional<std::vector<ov::Layout>> _inputLayouts;
     std::optional<std::vector<ov::Layout>> _outputLayouts;
 };
@@ -345,7 +345,7 @@ public:
              const std::optional<std::vector<uint64_t>>& initSizes = std::nullopt,
              const std::optional<int64_t> batchSize = std::nullopt,
              const std::optional<std::vector<ov::Layout>>& inputLayouts = std::nullopt,
-             const std::optional<std::vector<ov::Layout>>& outputLayouts = std::nullopt
+             const std::optional<std::vector<ov::Layout>>& outputLayouts = std::nullopt,
              BlobType blobType = BlobType::ELF);
 
 

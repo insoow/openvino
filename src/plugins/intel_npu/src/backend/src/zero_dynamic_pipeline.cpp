@@ -236,8 +236,6 @@ void DynamicPipeline::push() {
     _logger.debug("DynamicPipeline - push() started");
     //_logger.debug("inputs.size = %d, outputs.size=%d", _levelZeroInputTensors.size(), _levelZeroOutputTensors.size());
 
-    static bool isFirst = true;
-
     if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
         _config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
         if (_id) {
@@ -251,6 +249,7 @@ void DynamicPipeline::push() {
         _graph->set_last_submitted_id(_id);
     }
 
+    static bool isFirst = true;
     auto commandQueueHandle = _graph->get_command_queue()->handle();
     for (size_t i = 0; i < _command_lists.size(); ++i) {
         OV_ITT_TASK_CHAIN(ZERO_PIPELINE_IP_PUSH, itt::domains::LevelZeroBackend, "Pipeline", "push");
@@ -308,14 +307,14 @@ void DynamicPipeline::push() {
                           fence,
                           event,
                           nullptr);
-            isFirst = false;
+            //isFirst = false;
         }
         else {
             auto& cmdLists = command_lists->_commandListHandles;
             auto cmdQueue = _graph->get_command_queue();
             auto result = zeCommandQueueExecuteCommandLists(cmdQueue->handle(), cmdLists.size(), cmdLists.data(), fence);
             if (result != ZE_RESULT_SUCCESS) {
-                OPENVINO_THROW("Faile to submit command lists");
+                OPENVINO_THROW("Failed to submit command lists");
             }
         }
     }

@@ -102,9 +102,9 @@ Metadata<METADATA_VERSION_2_4>::Metadata(uint64_t blobSize,
                                          const std::optional<int64_t> batchSize,
                                          const std::optional<std::vector<ov::Layout>>& inputLayouts,
                                          const std::optional<std::vector<ov::Layout>>& outputLayouts,
-                                         const std::optional<int64_t> bType)
-    : Metadata<METADATA_VERSION_2_4>{blobSize, ovVersion, initSizes, batchSize, inputLayouts, outputLayouts},
-      blobType{bType} {
+                                         BlobType bType)
+    : Metadata<METADATA_VERSION_2_3>{blobSize, ovVersion, initSizes, batchSize, inputLayouts, outputLayouts},
+      _blobType(bType) {
     _version = METADATA_VERSION_2_4;
 }
 
