@@ -25,6 +25,7 @@
 #    include <mlir/Parser/Parser.h>
 #    include <mlir/Support/LLVM.h>
 #    include <mlir/Target/LLVMIR/Dialect/All.h>
+#    include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #    pragma warning(pop)
 
 namespace intel_npu {
@@ -177,11 +178,11 @@ void IRGraphImpl::initialize(std::optional<ov::Tensor>& blob,
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
         llvm::InitializeNativeTargetAsmParser();
-        mlir::registerAllToLLVMIRTranslations(_registry);
-
+		
         _initializedMLIR = true;
     }
-
+	
+	mlir::registerAllToLLVMIRTranslations(_registry);
     _context = std::make_unique<mlir::MLIRContext>(_registry);
     initializeIRGraphExecution(blob, metadata, arg_inputs, arg_outputs);
 
