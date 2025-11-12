@@ -322,6 +322,12 @@ void ZeroDynamicInferRequest::create_pipeline() {
 
 void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const ov::SoPtr<ov::ITensor>& tensor) {
     OV_ITT_SCOPED_TASK(itt::domains::LevelZeroBackend, "set_tensor");
+    std::ostringstream oss;
+    oss << tensor->get_strides();
+    _logger.debug("set user tensor: tensor shape: %s, stride: %s, size: %zu",
+                  tensor->get_shape().to_string().c_str(),
+                  oss.str().c_str(),
+                  tensor->get_byte_size());
 
     auto foundPort = find_port(port);
     OPENVINO_ASSERT(foundPort.found(), "Cannot find tensor for port ", port);
@@ -331,7 +337,46 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
         OPENVINO_THROW("Failed to set tensor. ", ex.what());
     }
 
+    /* // Update graphDescriptor
+     std::vector<ArgumentDescriptor> inputPros = _graphInputDescriptors;
+     std::vector<ArgumentDescriptor> outputPros = _graphOutputDescriptors;
+
+     const ov::Shape& shape = tensor->get_shape();
+     if (foundPort.is_input()) {
+         inputPros[foundPort.idx].info.dims_count = shape.size();
+         for (size_t i = 0; i < shape.size(); i++) {
+             inputPros[foundPort.idx].info.dims[i] = shape[i];
+         }
+     } else {
+         if (outputPros[foundPort.idx].info.dims_count != shape.size()) {
+             OPENVINO_THROW("Output tensor shape size not match, expected size: ",
+                            outputPros[foundPort.idx].info.dims_count,
+                            ", got size: ",
+                            shape.size());
+         }
+     }
+
+     intel_npu::IRGraph* irGraph = dynamic_cast<intel_npu::IRGraph*>(_graph.get());
+     if (irGraph) {
+         irGraph->predict_output_shape(inputPros, outputPros);
+     }
+
+     // If set output tensor, need check size
+     size_t preferedOutputSize = 1;
+     if (foundPort.is_output()) {
+         for (size_t i = 0; i < _graphOutputDescriptors[foundPort.idx].info.dims_count; i++) {
+             preferedOutputSize *= _graphOutputDescriptors[foundPort.idx].info.dims[i];
+         }
+         if (preferedOutputSize != tensor->get_size()) {
+             OPENVINO_THROW("Output tensor shape size not match, expected size: ",
+                            preferedOutputSize,
+                            ", got size: ",
+                            tensor->get_size());
+         }
+     }*/
+
     if (foundPort.is_input()) {
+        _logger.debug("update input tensor");
         if (get_user_input(foundPort.idx)._ptr == tensor._ptr) {
             // Got set_tensor with the same object - do nothing
             _logger.debug("ZeroDynamicInferRequest::set_tensor - got the same tensor, do nothing");
@@ -341,7 +386,6 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
         auto batchSizeCandidate =
             determine_dynamic_batch_size(_metadata.inputs.at(foundPort.idx), tensor._ptr, std::nullopt);
 
-        // Check if batch has been changed
         if (batchSizeCandidate.has_value()) {
             if (!_dynamicBatchValueChanged) {
                 if (get_user_input(foundPort.idx)._ptr != nullptr &&
@@ -371,8 +415,10 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
             get_user_inputs(foundPort.idx).shrink_to_fit();
             get_user_input(foundPort.idx) = {};
         }
+
         get_user_input(foundPort.idx) = tensor;
     } else {
+        _logger.debug("update output tensor");
         if (_userOutputTensors.at(foundPort.idx)._ptr == tensor._ptr) {
             // Got set_tensor with the same object here too - do nothing
             _logger.debug("ZeroDynamicInferRequest::set_tensor - got the same tensor, do nothing");
@@ -417,19 +463,59 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
             // context.
             levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, _config, tensor);
             updateCommandListArg = true;
-        } catch (const ZeroMemException&) {
+        } catch (const ZeroMemException& exception) {
+            _logger.debug("ZeroInferRequest::set_tensor - exception caught while trying to create a Level Zero tensor "
+                          "from the user tensor: %s",
+                          exception.what());
+
             // Check if the current Level Zero tensor was previously shared with the user. If so, it cannot be reused;
             // allocate a new tensor to back up the user tensor (which cannot be imported or used directly).
-            if (_dynamicBatchValueChanged || levelZeroTensor == nullptr || !levelZeroTensor->can_be_reused()) {
+            if (_dynamicBatchValueChanged || levelZeroTensor == nullptr || !levelZeroTensor->can_be_reused() ||
+                (levelZeroTensor != nullptr && (levelZeroTensor->get_byte_size() < tensor->get_byte_size()))) {
                 _logger.debug("ZeroInferRequest::set_tensor - allocate locally L0 tensor");
                 OV_ITT_TASK_NEXT(ZERO_SET_TENSOR, "allocate tensor");
 
                 auto batch = _graph->get_batch_size();
-                levelZeroTensor = allocate_tensor(_metadata.inputs.at(foundPort.idx), foundPort.idx, foundPort.is_input(), batch);
+                // levelZeroTensor = allocate_tensor(foundPort.idx, foundPort.is_input(), batch);
+
+                /*IODescriptor descriptor =
+                    foundPort.is_input() ? _metadata.inputs.at(foundPort.idx) : _metadata.outputs.at(foundPort.idx);
+                if (!foundPort.is_input()) {
+                    // For output, need update descriptor shape with predicted shape
+                    ov::Shape predictedShape;
+                    descriptor.shapeFromCompiler = shape;
+                }*/
+                levelZeroTensor = allocate_tensor_for_pipeline(
+                    foundPort.is_input() ? _metadata.inputs.at(foundPort.idx) : _metadata.outputs.at(foundPort.idx),
+                    foundPort.idx,
+                    foundPort.is_input(),
+                    batch);
+
                 updateCommandListArg = true;
             } else {
+                // TODO: shall we reuse old L0 tensor if it large enough, or just recreate a L0 tensor with same size of
+                // user tensor?
                 _logger.debug("ZeroInferRequest::set_tensor - reusing the level zero tensor since it is not shared "
-                              "with the user");
+                              "with the user, and old L0 tensor is large enough");
+                // The check is redundant but useful if we merge inferrequest
+                if (_graph->get_blob_type() == BlobType::LLVM) {
+                    // Update to use user info
+                    updateCommandListArg = true;
+                }
+            }
+        }
+
+        // TODO: Need to use predicted output shape to check existing output tensors
+        for (ArgumentDescriptor desc : _graphOutputDescriptors) {
+            size_t size = 1;
+            for (size_t i = 0; i < desc.info.dims_count; i++) {
+                size *= desc.info.dims[i];
+            }
+            if (size < tensor->get_size()) {
+                OPENVINO_THROW("Output tensor size not match, expected size: ",
+                               size,
+                               ", got size: ",
+                               tensor->get_size());
             }
         }
 
@@ -439,13 +525,26 @@ void ZeroDynamicInferRequest::set_tensor(const ov::Output<const ov::Node>& port,
             OPENVINO_ASSERT(levelZeroTensor->data(), "Empty buffer");
 
             OV_ITT_TASK_NEXT(ZERO_SET_TENSOR, "update_graph_arguments");
-            _pipeline->update_graph_arguments(foundPort.is_input()
-                                                  ? _graph->get_input_descriptors().at(foundPort.idx).idx
-                                                  : _graph->get_output_descriptors().at(foundPort.idx).idx,
-                                              levelZeroTensor->data(),
-                                              levelZeroTensor->get_byte_size(),
-                                              levelZeroTensor->get_strides(),
-                                              levelZeroTensor->get_shape());
+            if (_graph->get_blob_type() == BlobType::LLVM &&
+                levelZeroTensor->get_byte_size() > tensor->get_byte_size()) {
+                // This L0 tensor is larger than user tensor, but we only use part of it
+                _pipeline->update_graph_arguments(foundPort.is_input()
+                                                      ? _graph->get_input_descriptors().at(foundPort.idx).idx
+                                                      : _graph->get_output_descriptors().at(foundPort.idx).idx,
+                                                  levelZeroTensor->data(),
+                                                  tensor->get_byte_size(),
+                                                  tensor->get_strides(),
+                                                  tensor->get_shape());
+            } else {
+                // This L0 tensor shal have same info with user tensor
+                _pipeline->update_graph_arguments(foundPort.is_input()
+                                                      ? _graph->get_input_descriptors().at(foundPort.idx).idx
+                                                      : _graph->get_output_descriptors().at(foundPort.idx).idx,
+                                                  levelZeroTensor->data(),
+                                                  levelZeroTensor->get_byte_size(),
+                                                  levelZeroTensor->get_strides(),
+                                                  levelZeroTensor->get_shape());
+            }
         }
     }
 }
@@ -639,6 +738,13 @@ std::shared_ptr<ZeroTensor> ZeroDynamicInferRequest::allocate_tensor_for_pipelin
     }
 
     if (!isInput) {
+		const char* env_use_input_wh = std::getenv("HACK_OUTPUT_SHAPE_USE_INPUT_WH");
+		if (env_use_input_wh) {
+			_logger.debug("Use width and height from input for output");
+			descriptorWithUserInfo.shapeFromCompiler[2] = get_user_input(index)->get_shape()[2];
+			descriptorWithUserInfo.shapeFromCompiler[3] = get_user_input(index)->get_shape()[3];
+		}
+
         // TODO : remove workaround to force output tensor shape, not set_tensor for output in benchmark now
         //  set HACK_OURPUT_SHAPE=1*2*3*4
         const char* env_p = std::getenv("HACK_OUTPUT_SHAPE");
