@@ -122,7 +122,7 @@ Pipeline::Pipeline(const Config& config,
                             tensor_strides.userStrides[idx] = 0;
                         }
                     }
-                    tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
+                    //tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
                 }
             } else {
                 tensor_value.pTensor = static_cast<unsigned char*>(input_tensors.at(io_index).at(0)->data()) +
@@ -141,7 +141,7 @@ Pipeline::Pipeline(const Config& config,
                             tensor_strides.userStrides[idx] = 0;
                         }
                     }
-                    tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
+                    //tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
                 }
             }
 
@@ -180,7 +180,7 @@ Pipeline::Pipeline(const Config& config,
                         tensor_strides.userStrides[idx] = 0;
                     }
                 }
-                tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
+                //tensor_value.pNext = reinterpret_cast<void*>(&tensor_strides);
             }
 
             graph->set_argument_value(
