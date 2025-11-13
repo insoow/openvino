@@ -128,8 +128,6 @@ DynamicPipeline::DynamicPipeline(const Config& config,
 
             _logger.debug(" update tensor property for input desc index: %d", desc.idx);
 
-            std::cout << desc.idx << std::endl;
-
             // Conver byte strides to element strides
             ov::Strides element_strides = input_tensors.at(io_index).at(0)->get_strides();
             const size_t element_size = input_tensors.at(io_index).at(0)->get_element_type().size();

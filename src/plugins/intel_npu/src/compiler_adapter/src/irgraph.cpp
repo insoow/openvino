@@ -480,12 +480,12 @@ void IRGraphImpl::executeGraph(std::vector<MemRefType*>& inputMefRefs,
     auto ddiTableHandle = zeroInitStruct->getGraphDdiTable().getImpl();
     const std::string adapterName = "_mlir_ciface_main";
 
-    for (auto memRef : inputMefRefs) {
-        std::cout << "Input MemRef: " << *memRef << std::endl;
-    }
-    for (auto memRef : outputMemRefs) {
-        std::cout << "Output MemRef: " << *memRef << std::endl;
-    }
+    //for (auto memRef : inputMefRefs) {
+    //    std::cout << "Input MemRef: " << *memRef << std::endl;
+    //}
+    //for (auto memRef : outputMemRefs) {
+    //    std::cout << "Output MemRef: " << *memRef << std::endl;
+    //}
     auto error = invokePacked(_engine,
                               adapterName,
                               inputMefRefs,
