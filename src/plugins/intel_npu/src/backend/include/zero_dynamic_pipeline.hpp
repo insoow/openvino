@@ -184,6 +184,7 @@ protected:
     const std::vector<std::vector<std::shared_ptr<ZeroTensor>>> _levelZeroInputTensors;
     const std::vector<std::shared_ptr<ZeroTensor>> _levelZeroOutputTensors;
     std::vector<std::unique_ptr<PipelinedCommandLists>> _command_lists;
+    bool _reuseCmdLists = false;
 };
 
 }  // namespace intel_npu

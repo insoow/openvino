@@ -40,6 +40,11 @@ DynamicPipeline::DynamicPipeline(const Config& config,
                         _init_structs->getCommandQueueDdiTable().version() >= ZE_MAKE_VERSION(1, 1),
                     "In-order execution doesn't work in case synchronization of the inferences is done using events");
 
+    auto reuseCmdList = getenv("HOST_COMPILE_REUSE_CMDLIST");
+    if (reuseCmdList != nullptr && std::string(reuseCmdList) == "1") {
+        _reuseCmdLists = true;
+    }
+
     if (_config.has<PERF_COUNT>() && _config.get<PERF_COUNT>()) {
         auto profiling_pool =
             std::make_shared<zeroProfiling::ProfilingPool>(_init_structs, _graph, zeroProfiling::POOL_SIZE);
@@ -264,7 +269,7 @@ void DynamicPipeline::push() {
 
         auto& command_lists = _command_lists.at(i);
 
-        if (isFirst) {
+        if (_reuseCmdLists == false || isFirst) {
             command_lists->reset();
             #if 0
             auto graphArguments = command_lists->getBinding();
@@ -307,7 +312,7 @@ void DynamicPipeline::push() {
                           fence,
                           event,
                           nullptr);
-            //isFirst = false;
+            isFirst = false;
         }
         else {
             auto& cmdLists = command_lists->_commandListHandles;
