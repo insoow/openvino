@@ -450,7 +450,8 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                                                   ? _graph->get_input_descriptors().at(foundPort.idx).idx
                                                   : _graph->get_output_descriptors().at(foundPort.idx).idx,
                                               levelZeroTensor->data(),
-                                              levelZeroTensor->get_byte_size(), optStrides);
+                                              levelZeroTensor->get_byte_size(),
+                                              optStrides);
         }
     }
     // If command list updates are not supported, fallback to copying tensors every time.
