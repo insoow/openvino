@@ -126,7 +126,15 @@ public:
                       ze_event_handle_t event,
                       ze_graph_profiling_pool_handle_t profiling) override;
     void getBinding(IRGraph::GraphArguments& binding) override;
-    virtual ~IRGraphImpl() {}
+    virtual ~IRGraphImpl() {
+        destroy();
+    }
+    void destroy() {
+        if (_engine != nullptr) {
+            npuMLIRRuntimeDestroy(_engine);
+            _engine = nullptr;
+        }
+    }
     void predictOutputShape(std::vector<MemRefType>& inputDescriptors,
                             std::vector<MemRefType>& outputDescriptors) override;
 
@@ -870,6 +878,11 @@ IRGraph::~IRGraph() {
     // if (_handle != nullptr) {
     //     _handle = nullptr;
     // }
+    auto impl = reinterpret_cast<IRGraphImpl*>(_impl.get());
+
+    if (impl != nullptr) {
+        impl->destroy();
+    }
 
     if (!_lastSubmittedEvent.empty()) {
         _lastSubmittedEvent.clear();
