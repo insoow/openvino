@@ -80,10 +80,15 @@ typedef enum _npu_mlir_runtime_version_t {
 typedef struct _npu_mlir_runtime_handle_t* npu_mlir_runtime_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief NPU MLIR memref handle
+typedef void* npu_mlir_runtime_memref_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Defined Return/Error codes
 typedef enum _npu_mlir_runtime_result_t {
     NPU_MLIR_RUNTIME_RESULT_SUCCESS = 0,
     NPU_MLIR_RUNTIME_RESULT_ERROR_INVALID_NULL_POINTER = 0x80000001,
+    NPU_MLIR_RUNTIME_RESULT_ERROR_INVALID_ARGUMENT = 0x80000002,
     NPU_MLIR_RUNTIME_RESULT_ERROR_UNKNOWN = 0x8ffffffe,
     NPU_MLIR_RUNTIME_RESULT_FORCE_UINT32 = 0x8fffffff,
 } npu_mlir_runtime_result_t;
@@ -102,7 +107,8 @@ typedef struct _npu_mlir_runtime_properties_t {
     uint32_t numOfGraphArgs;
 } npu_mlir_runtime_properties_t;
 
-
+#define ENABLE_GENERALIZED_MEMREF
+#if !defined(ENABLE_GENERALIZED_MEMREF)
 typedef struct _npu_mlir_runtime_mem_ref_t {
     const void* basePtr;
     const void* data;
@@ -111,13 +117,24 @@ typedef struct _npu_mlir_runtime_mem_ref_t {
     int64_t strides[4];
     uint32_t dimsCount;
 } npu_mlir_runtime_mem_ref_t;
+#else
+typedef void* npu_mlir_runtime_mem_ref_t;
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Execute params
 typedef struct _npu_mlir_runtime_execute_params_t {
+    #if !defined(ENABLE_GENERALIZED_MEMREF)
     npu_mlir_runtime_mem_ref_t** pInputs;
+    #else
+    npu_mlir_runtime_mem_ref_t* pInputs;
+    #endif
     uint32_t numOfInputs;
+    #if !defined(ENABLE_GENERALIZED_MEMREF)
     npu_mlir_runtime_mem_ref_t** pOutputs;
+    #else
+    npu_mlir_runtime_mem_ref_t* pOutputs;
+    #endif
     uint32_t numOfOutputs;
     ze_context_handle_t ctx;
     ze_device_handle_t device;
@@ -128,6 +145,22 @@ typedef struct _npu_mlir_runtime_execute_params_t {
     ze_fence_handle_t inferenceFence;
     ze_event_handle_t event;
 } npu_mlir_runtime_execute_params_t;
+
+
+typedef struct _npu_mlir_runtime_predict_output_shape_params_t {
+    #if !defined(ENABLE_GENERALIZED_MEMREF)
+    npu_mlir_runtime_mem_ref_t** pInputs;
+    #else
+    npu_mlir_runtime_mem_ref_t* pInputs;
+    #endif
+    uint32_t numOfInputs;
+    #if !defined(ENABLE_GENERALIZED_MEMREF)
+    npu_mlir_runtime_mem_ref_t** pOutputs;
+    #else
+    npu_mlir_runtime_mem_ref_t* pOutputs;
+    #endif
+    uint32_t numOfOutputs;
+} npu_mlir_runtime_predict_output_shape_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Returns the API version
@@ -170,11 +203,22 @@ NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL np
 /// @brief Predit output shape based on input shape
 NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimePredictOutputShape(
     npu_mlir_runtime_handle_t hRuntime,        ///< [in] handle of mlir runtime object
-    npu_mlir_runtime_mem_ref_t** pInputArgs,   ///< [in] pointer to input argument mem descriptor pointer array
-    uint32_t numOfInputArgs,                   ///< [in] number of input arguments
-    npu_mlir_runtime_mem_ref_t** pOutputArgs,  ///< [out] pointer to output argument mem descriptor pointer array
-    uint32_t numOfOutputArgs                   ///< [in] number of
+    npu_mlir_runtime_predict_output_shape_params_t* params
 );
+
+#if defined(ENABLE_GENERALIZED_MEMREF)
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeCreateMemRef(
+    uint64_t dimCount, npu_mlir_runtime_memref_handle_t* handle);
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeDestroyMemRef(
+    npu_mlir_runtime_memref_handle_t handle);
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeSetMemRef(
+    npu_mlir_runtime_memref_handle_t* handle, void* ptr, int64_t* sizes, int64_t* strides, int64_t dimCount);
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeSetMemRefPtr(
+    npu_mlir_runtime_memref_handle_t* handle, void* ptr);
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeCopyMemRef(
+    npu_mlir_runtime_memref_handle_t* src, npu_mlir_runtime_memref_handle_t* dst);
+
+#endif
 
 #if defined(__cplusplus)
 }  // extern "C"
