@@ -104,8 +104,8 @@ _levelZeroOutputTensors(output_tensors)*/
     for (size_t i = 0; i < _number_of_command_lists; i++) {
         _logger.debug("DynamicPipeline - set args for command list number: %zu", i);
         size_t io_index = 0;
-        for (const auto& desc : graph->get_input_descriptors()) {
-            // if (isMainInputWeightsName(desc.info.name)) {
+        for (const auto& desc : _graph->get_metadata().inputs) {
+            // if (desc.isMainInputWeights) {
             //     // These values were set while running the "WeightlessGraph::init" method
             //     continue;
             // }
@@ -113,7 +113,7 @@ _levelZeroOutputTensors(output_tensors)*/
             if (input_tensors.at(io_index).size() > 1) {
                 _logger.debug("DynamicPipeline - set args for input index: %zu", io_index);
 
-                irGraph->set_argument_property(desc.idx,
+                irGraph->set_argument_property(desc.indexUsedByDriver,
                                                input_tensors.at(io_index).at(i)->data(),
                                                input_tensors.at(io_index).at(i)->get_strides(),
                                                input_tensors.at(io_index).at(i)->get_shape());
@@ -122,9 +122,9 @@ _levelZeroOutputTensors(output_tensors)*/
                 continue;
             }
 
-            _logger.debug(" update tensor property for input desc index: %d", desc.idx);
+            _logger.debug(" update tensor property for input desc index: %d", desc.indexUsedByDriver);
             irGraph->set_argument_property(
-                desc.idx,
+                desc.indexUsedByDriver,
                 static_cast<unsigned char*>(input_tensors.at(io_index).at(0)->data()) +
                     (i * input_tensors.at(io_index).at(0)->get_byte_size()) / _number_of_command_lists,
                 input_tensors.at(io_index).at(0)->get_strides(),
@@ -134,10 +134,10 @@ _levelZeroOutputTensors(output_tensors)*/
         }
 
         io_index = 0;
-        for (const auto& desc : graph->get_output_descriptors()) {
-            _logger.debug("DynamicPipeline - update tensor property for output desc index: %d", desc.idx);
+        for (const auto& desc : _graph->get_metadata().outputs) {
+            _logger.debug("DynamicPipeline - update tensor property for output desc index: %d", desc.indexUsedByDriver);
             irGraph->set_argument_property(
-                desc.idx,
+                desc.indexUsedByDriver,
                 static_cast<unsigned char*>(output_tensors.at(io_index)->data()) +
                     (i * output_tensors.at(io_index)->get_byte_size()) / _number_of_command_lists,
                 output_tensors.at(io_index)->get_strides(),

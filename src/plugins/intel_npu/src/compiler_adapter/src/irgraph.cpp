@@ -57,18 +57,10 @@ public:
 
 public:
     IRGraphImpl() : _logger("IRGraphImpl", Logger::global().level()) {}
-    void initialize(std::optional<ov::Tensor>& blob,
-                    NetworkMetadata& metadata,
-                    std::vector<ArgumentDescriptor>& inputs,
-                    std::vector<ArgumentDescriptor>& outputs) override;
+    void initialize(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) override;
     void createExecutionEngine(std::optional<ov::Tensor>& blob);
-    void prepareMetadata(NetworkMetadata& metadata,
-                         std::vector<ArgumentDescriptor>& inputs,
-                         std::vector<ArgumentDescriptor>& outputs);
-    void initializeIRGraphExecution(std::optional<ov::Tensor>& blob,
-                                    NetworkMetadata& metadata,
-                                    std::vector<ArgumentDescriptor>& inputs,
-                                    std::vector<ArgumentDescriptor>& outputs);
+    void prepareMetadata(NetworkMetadata& metadata);
+    void initializeIRGraphExecution(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata);
     void setArgumentValue(uint32_t argi, const void* argv) override;
     void setArgumentProperty(uint32_t argi,
                              const void* argv,
@@ -120,16 +112,13 @@ public:
 
 bool IRGraphImpl::_initializedMLIR = false;
 
-void IRGraphImpl::initialize(std::optional<ov::Tensor>& blob,
-                             NetworkMetadata& metadata,
-                             std::vector<ArgumentDescriptor>& arg_inputs,
-                             std::vector<ArgumentDescriptor>& arg_outputs) {
+void IRGraphImpl::initialize(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) {
     if (!_initializedMLIR) {
-        initializeIRGraphExecution(blob, metadata, arg_inputs, arg_outputs);
+        initializeIRGraphExecution(blob, metadata);
         _initializedMLIR = true;
     }
 
-    _binding._inputs.resize(arg_inputs.size());
+    _binding._inputs.resize(metadata.inputs.size());
 
     // dump output of _metadata
     _logger.debug("Dump metadata info from blob");
@@ -167,7 +156,7 @@ void IRGraphImpl::initialize(std::optional<ov::Tensor>& blob,
     }
 
     _logger.debug("Outputs:");
-    _binding._outputs.resize(arg_outputs.size());
+    _binding._outputs.resize(metadata.outputs.size());
     auto& outputs = _binding._outputs;
     for (size_t i = 0; i < outputs.size(); ++i) {
         const auto& shape = metadata.outputs[i].shapeFromCompiler.get_shape();
@@ -281,9 +270,7 @@ static IODescriptor getIODescriptor(const ze_graph_argument_properties_3_t& arg,
             metadata.has_value() ? std::optional(shapeFromIRModel) : std::nullopt};
 }
 
-void IRGraphImpl::prepareMetadata(NetworkMetadata& metadata,
-                                  std::vector<ArgumentDescriptor>& inputs,
-                                  std::vector<ArgumentDescriptor>& outputs) {
+void IRGraphImpl::prepareMetadata(NetworkMetadata& metadata) {
     metadata.inputs.clear();
     metadata.outputs.clear();
     for (uint32_t i = 0; i < _engineProperties.numOfGraphArgs; ++i) {
@@ -298,11 +285,9 @@ void IRGraphImpl::prepareMetadata(NetworkMetadata& metadata,
         switch (arg.type) {
         case ZE_GRAPH_ARGUMENT_TYPE_INPUT: {
             metadata.inputs.push_back(getIODescriptor(arg, meta));
-            inputs.push_back({arg, i});
         } break;
         case ZE_GRAPH_ARGUMENT_TYPE_OUTPUT: {
             metadata.outputs.push_back(getIODescriptor(arg, meta));
-            outputs.push_back({arg, i});
         } break;
         default: {
             OPENVINO_THROW("Invalid ze_graph_argument_type_t found in ze_graph_argument_properties_3_t object: ",
@@ -317,17 +302,14 @@ void IRGraphImpl::getBinding(IRGraph::GraphArguments& binding) {
     binding = _binding;
 }
 
-void IRGraphImpl::initializeIRGraphExecution(std::optional<ov::Tensor>& blob,
-                                             NetworkMetadata& metadata,
-                                             std::vector<ArgumentDescriptor>& inputs,
-                                             std::vector<ArgumentDescriptor>& outputs) {
+void IRGraphImpl::initializeIRGraphExecution(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) {
     createExecutionEngine(blob);
-    prepareMetadata(metadata, inputs, outputs);
+    prepareMetadata(metadata);
 
     _logger.debug("num of subgraphs: %d inputs: %d outputs: %d",
                   _engineProperties.numOfSubGraphs,
-                  inputs.size(),
-                  outputs.size());
+                  metadata.inputs.size(),
+                  metadata.outputs.size());
 }
 
 void IRGraphImpl::setArgumentValue(uint32_t argi, const void* argv) {
@@ -512,7 +494,7 @@ IRGraph::IRGraph(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
     _impl = std::make_unique<IRGraphImpl>();
 
     // initialize MLIR execution engine, metadata, input&output descriptors
-    _impl->initialize(_blob, _metadata, _inputDescriptors, _outputDescriptors);
+    _impl->initialize(_blob, _metadata);
 
     _num_of_subgraphs = _impl->getNumSubgraphs();
 
@@ -579,14 +561,6 @@ const NetworkMetadata& IRGraph::get_metadata() const {
 
 void IRGraph::update_network_name(std::string_view name) {
     _metadata.name = name;
-}
-
-const std::vector<ArgumentDescriptor>& IRGraph::get_input_descriptors() const {
-    return _inputDescriptors;
-}
-
-const std::vector<ArgumentDescriptor>& IRGraph::get_output_descriptors() const {
-    return _outputDescriptors;
 }
 
 const std::shared_ptr<CommandQueue>& IRGraph::get_command_queue() const {
@@ -711,9 +685,6 @@ void IRGraph::initialize(const Config& config) {
         }
         return;
     }
-
-    _inputDescriptors.shrink_to_fit();
-    _outputDescriptors.shrink_to_fit();
 
     _commandQueueGroupOrdinal = zeroUtils::findCommandQueueGroupOrdinal(_zeroInitStruct->getDevice(),
                                                                         ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE);

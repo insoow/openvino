@@ -160,10 +160,7 @@ public:
         using MemRefType = IRGraph::MemRefType;
 
     public:
-        virtual void initialize(std::optional<ov::Tensor>& blob,
-                                NetworkMetadata& metadata,
-                                std::vector<ArgumentDescriptor>& inputs,
-                                std::vector<ArgumentDescriptor>& outputs) = 0;
+        virtual void initialize(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) = 0;
         virtual void setArgumentValue(uint32_t argi, const void* argv) = 0;
         virtual void setArgumentProperty(uint32_t argi,
                                          const void* argv,
@@ -213,8 +210,6 @@ public:
 
     void update_network_name(std::string_view name) override;
 
-    const std::vector<ArgumentDescriptor>& get_input_descriptors() const override;
-    const std::vector<ArgumentDescriptor>& get_output_descriptors() const override;
     const std::shared_ptr<CommandQueue>& get_command_queue() const override;
     uint32_t get_command_queue_group_ordinal() const override;
 
@@ -258,9 +253,6 @@ private:
      * @note the number of subgraphs will be one for static models
      */
     uint64_t _num_of_subgraphs = 1;
-
-    std::vector<ArgumentDescriptor> _inputDescriptors;
-    std::vector<ArgumentDescriptor> _outputDescriptors;
 
     std::shared_ptr<CommandQueue> _commandQueue;
     uint32_t _commandQueueGroupOrdinal = 0;
