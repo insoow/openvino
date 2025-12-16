@@ -732,6 +732,9 @@ void IRGraph::initialize(const Config& config) {
 
         _lastSubmittedEvent.resize(numberOfCommandLists);
     }
+
+    // To ensure that the initialization of the graph does not exit prematurely due to nullptrs
+    _init_completed = true;
 }
 
 bool IRGraph::release_blob(const Config& config) {
