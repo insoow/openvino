@@ -344,6 +344,13 @@ std::shared_ptr<ZeroTensor> ZeroDynamicInferRequest::allocate_tensor_for_pipelin
     }
 
     if (!isInput) {
+        const char* env_use_input_wh = std::getenv("HACK_OUTPUT_SHAPE_USE_INPUT_WH");
+		if (env_use_input_wh) {
+			_logger.debug("Use width and height from input for output");
+			descriptorWithUserInfo.shapeFromCompiler[2] = get_user_input(index)->get_shape()[2];
+			descriptorWithUserInfo.shapeFromCompiler[3] = get_user_input(index)->get_shape()[3];
+		}
+
         // TODO : remove workaround to force output tensor shape, not set_tensor for output in benchmark now
         //  set HACK_OURPUT_SHAPE=1*2*3*4
         const char* env_p = std::getenv("HACK_OUTPUT_SHAPE");
@@ -908,7 +915,7 @@ void ZeroDynamicInferRequest::infer_async() {
             for (const auto& outDesc : graphArgs._outputs) {
                 outputPros.push_back(*outDesc);
             }
-
+            #if 0
             irGraph->predict_output_shape(inputPros, outputPros);
 
             bool shapeChanged = false;
@@ -932,6 +939,7 @@ void ZeroDynamicInferRequest::infer_async() {
             if (!shapeChanged) {
                 _logger.debug("No output shape changed detected");
             }
+            #endif
         }
 
         if (!_pipelineIsCreated || _dynamicBatchValueChanged) {

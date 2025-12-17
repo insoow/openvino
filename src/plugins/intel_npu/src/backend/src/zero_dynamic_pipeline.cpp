@@ -43,6 +43,11 @@ _levelZeroOutputTensors(output_tensors)*/
 
     _logger.debug("DynamicPipeline - initialize started, number_of_command_lists %i", _number_of_command_lists);
 
+    auto reuseCmdList = getenv("ENABLED_HOST_COMPILE_REUSE_CMDLIST");
+    if (reuseCmdList != nullptr && std::string(reuseCmdList) == "1") {
+        _reuseCmdLists = true;
+    }
+
     // if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
     //     _config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
     //     _graph->resize_last_submitted_event(_number_of_command_lists);
@@ -213,8 +218,9 @@ void DynamicPipeline::PipelinedCommandLists::bind(IRGraph* graph) {
 }
 
 void DynamicPipeline::push() {
-    _logger.debug("DynamicPipeline - push() started");
+    //_logger.debug("DynamicPipeline - push() started");
     //_logger.debug("inputs.size = %d, outputs.size=%d", _levelZeroInputTensors.size(), _levelZeroOutputTensors.size());
+    static bool isFirst = true;
 
     if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
         _config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
@@ -243,6 +249,7 @@ void DynamicPipeline::push() {
 
         auto& command_lists = _command_lists.at(i);
         auto graphArguments = command_lists->getBinding();
+        #if 0
         _logger.debug("Inputs info for IRGraph:");
         for (auto& memType : graphArguments._inputs) {
             _logger.debug(" sizes: %d*%d*%d*%d",
@@ -279,18 +286,28 @@ void DynamicPipeline::push() {
                           memType->memRef.offset);
             _logger.debug("");
         }
-
-        dynamic_cast<IRGraph*>(_graph.get())
-            ->execute(_init_structs,
-                      command_lists->getBinding(),
-                      command_lists->getHandles(),
-                      commandQueueHandle,
-                      fence,
-                      event,
-                      nullptr);
+        #endif
+        if (_reuseCmdLists == false || isFirst) {
+            dynamic_cast<IRGraph*>(_graph.get())
+                ->execute(_init_structs,
+                          command_lists->getBinding(),
+                          command_lists->getHandles(),
+                          commandQueueHandle,
+                          fence,
+                          event,
+                          nullptr);
+            isFirst = false;
+        } else {
+            auto& cmdLists = command_lists->_commandListHandles;
+            auto cmdQueue = _graph->get_command_queue();
+            auto result = zeCommandQueueExecuteCommandLists(cmdQueue->handle(), cmdLists.size(), cmdLists.data(), fence);
+            if (result != ZE_RESULT_SUCCESS) {
+                OPENVINO_THROW("Failed to submit command lists");
+            }
+        }
     }
 
-    _logger.debug("DynamicPipeline - push() completed");
+    //_logger.debug("DynamicPipeline - push() completed");
 }
 
 void DynamicPipeline::pull() {

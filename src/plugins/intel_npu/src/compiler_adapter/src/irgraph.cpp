@@ -364,9 +364,9 @@ void IRGraphImpl::setArgumentProperty(uint32_t argi,
     auto inputs = _binding._inputs;
     if (argi < inputs.size()) {
         std::ostringstream oss;
-        oss << *(inputs[argi]);
-        _logger.debug("setArgumentProperty for index %d (input %d)", argi, argi);
-        _logger.debug("Before change: %s", oss.str().c_str());
+        //oss << *(inputs[argi]);
+        //_logger.debug("setArgumentProperty for index %d (input %d)", argi, argi);
+        //_logger.debug("Before change: %s", oss.str().c_str());
         inputs[argi]->memRef.basePtr = inputs[argi]->memRef.data = const_cast<void*>(argv);
         // Now MemRefType only support 4 dimension
         size_t shapesSize = shapes.size();
@@ -391,19 +391,19 @@ void IRGraphImpl::setArgumentProperty(uint32_t argi,
 
         // Need stride based on element but not byte
         // inputs[argi]->updateStride();
-        oss.clear();
-        oss.str("");
-        oss << *(inputs[argi]);
-        _logger.debug("After change: %s", oss.str().c_str());
+        //oss.clear();
+        //oss.str("");
+        //oss << *(inputs[argi]);
+        //_logger.debug("After change: %s", oss.str().c_str());
 
     } else {
         auto outputs = _binding._outputs;
         auto idx = argi - inputs.size();
-        _logger.debug("setArgumentValue for index %d (output %d)", argi, idx);
+        //_logger.debug("setArgumentValue for index %d (output %d)", argi, idx);
         if (idx < outputs.size()) {
-            std::ostringstream oss;
-            oss << *(outputs[idx]);
-            _logger.debug("Before change: %s", oss.str().c_str());
+            //std::ostringstream oss;
+            //oss << *(outputs[idx]);
+            //_logger.debug("Before change: %s", oss.str().c_str());
             outputs[idx]->memRef.basePtr = outputs[idx]->memRef.data = const_cast<void*>(argv);
 
             // Now MemRefType only support 4 dimension
@@ -430,10 +430,10 @@ void IRGraphImpl::setArgumentProperty(uint32_t argi,
             // Need stride based on element but not byte
             // outputs[idx]->updateStride();
 
-            oss.clear();
-            oss.str("");
-            oss << *(outputs[idx]);
-            _logger.debug("After change: %s", oss.str().c_str());
+            //oss.clear();
+            //oss.str("");
+            //oss << *(outputs[idx]);
+            //_logger.debug("After change: %s", oss.str().c_str());
         }
     }
 }
