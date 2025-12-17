@@ -381,6 +381,7 @@ void IRGraphImpl::setArgumentValueWithStrides(uint32_t argi, const void* argv, c
     auto& inputs = _binding._inputs;
     if (argi < inputs.size()) {
         std::ostringstream oss;
+
         oss << inputs[argi];
         _logger.debug("setArgumentProperty for index %d (input %d)", argi, argi);
         _logger.debug("Before change: %s", oss.str().c_str());
@@ -395,7 +396,6 @@ void IRGraphImpl::setArgumentValueWithStrides(uint32_t argi, const void* argv, c
         oss.str("");
         oss << inputs[argi];
         _logger.debug("After change: %s", oss.str().c_str());
-
     } else {
         auto& outputs = _binding._outputs;
         auto idx = argi - inputs.size();

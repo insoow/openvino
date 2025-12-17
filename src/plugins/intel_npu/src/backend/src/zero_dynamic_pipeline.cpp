@@ -63,6 +63,12 @@ _levelZeroOutputTensors(output_tensors)*/
     OV_ITT_SCOPED_TASK(itt::domains::LevelZeroBackend, "Zero_infer_request::DynamicPipeline::DynamicPipeline");
 
     _logger.debug("DynamicPipeline - initialize started, number_of_command_lists %i", _number_of_command_lists);
+
+    auto reuseCmdList = getenv("ENABLED_HOST_COMPILE_REUSE_CMDLIST");
+    if (reuseCmdList != nullptr && std::string(reuseCmdList) == "1") {
+        _reuseCmdLists = true;
+    }
+
     // TODO: not support now
     // if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
     //     _config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
@@ -261,8 +267,9 @@ void DynamicPipeline::PipelinedCommandLists::bind(IRGraph* graph) {
 }
 
 void DynamicPipeline::push() {
-    _logger.debug("DynamicPipeline - push() started");
+    //_logger.debug("DynamicPipeline - push() started");
     //_logger.debug("inputs.size = %d, outputs.size=%d", _levelZeroInputTensors.size(), _levelZeroOutputTensors.size());
+    static bool isFirst = true;
 
     if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
         _config.get<RUN_INFERENCES_SEQUENTIALLY>()) {
@@ -299,6 +306,7 @@ void DynamicPipeline::push() {
         for (auto& memType : graphArguments._outputs) {
             _logger.debug("output: %s", memType.toString().c_str());
         }
+
         // Before call execute, shall clear memref containers in graphArguments to avoid dangling ptrs
         graphArguments._inputMemRefs.clear();
         graphArguments._outputMemRefs.clear();
@@ -340,14 +348,24 @@ void DynamicPipeline::push() {
         //         _logger.warning("Use predicted shape to replace the real tensor shape and update its strides");
         // }
 
-        dynamic_cast<IRGraph*>(_graph.get())
-            ->execute(_init_structs,
-                      command_lists->getBinding(),
-                      command_lists->getHandles(),
-                      commandQueueHandle,
-                      fence,
-                      event,
-                      nullptr);
+        if (_reuseCmdLists == false || isFirst) {
+            dynamic_cast<IRGraph*>(_graph.get())
+                ->execute(_init_structs,
+                          command_lists->getBinding(),
+                          command_lists->getHandles(),
+                          commandQueueHandle,
+                          fence,
+                          event,
+                          nullptr);
+            isFirst = false;
+        } else {
+            auto& cmdLists = command_lists->_commandListHandles;
+            auto cmdQueue = _graph->get_command_queue();
+            auto result = zeCommandQueueExecuteCommandLists(cmdQueue->handle(), cmdLists.size(), cmdLists.data(), fence);
+            if (result != ZE_RESULT_SUCCESS) {
+                OPENVINO_THROW("Failed to submit command lists");
+            }
+        }
     }
 
     _logger.debug("DynamicPipeline - push() completed");
