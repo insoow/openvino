@@ -125,6 +125,7 @@ public:
 
 protected:
     std::vector<std::unique_ptr<PipelinedCommandLists>> _command_lists;
+    bool _reuseCmdLists = false;
 };
 
 }  // namespace intel_npu
