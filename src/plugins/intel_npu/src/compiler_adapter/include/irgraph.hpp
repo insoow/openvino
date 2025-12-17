@@ -154,6 +154,13 @@ public:
     struct GraphArguments {
         std::vector<MemRefType> _inputs;
         std::vector<MemRefType> _outputs;
+        std::vector<npu_mlir_runtime_mem_ref_handle_t> _inputMemRefs;
+        std::vector<npu_mlir_runtime_mem_ref_handle_t> _outputMemRefs;
+        npu_mlir_runtime_execute_params_t _executeParams;
+        Logger _logger = Logger("GraphArguments", Logger::global().level());
+
+        void setArgumentValue(uint32_t argi, const void* argv);
+        void setArgumentProperty(uint32_t argi, const void* argv, const ov::Strides& strides, const ov::Shape& shapes);
     };
 
     class Impl {

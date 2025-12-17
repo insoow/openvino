@@ -11,7 +11,6 @@
 #include "intel_npu/prefix.hpp"
 #include "intel_npu/utils/utils.hpp"
 #include "intel_npu/utils/zero/zero_api.hpp"
-#include "npu_mlir_runtime.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 
 namespace intel_npu {
@@ -51,6 +50,77 @@ void IRGraph::MemRefType::alignWithHandle() {
         throw std::runtime_error("Failed to parse MemRef handle");
     }
 }
+
+void IRGraph::GraphArguments::setArgumentValue(uint32_t argi, const void* argv) {
+    if (argi < _inputs.size()) {
+        _logger.debug("setArgumentValue for index %d (input %d)", argi, argi);
+        _inputs[argi].basePtr = _inputs[argi].data = const_cast<void*>(argv);
+    } else {
+        auto idx = argi - _inputs.size();
+        _logger.debug("setArgumentValue for index %d (output %d)", argi, idx);
+        if (idx < _outputs.size()) {
+            _outputs[idx].basePtr = _outputs[idx].data = const_cast<void*>(argv);
+        }
+    }
+}
+
+void IRGraph::GraphArguments::setArgumentProperty(uint32_t argi,
+                                                  const void* argv,
+                                                  const ov::Strides& strides,
+                                                  const ov::Shape& shapes) {
+    _logger.debug("setArgumentProperty for index %d", argi);
+    if (argi < _inputs.size()) {
+        std::ostringstream oss;
+        oss << _inputs[argi];
+        _logger.debug("setArgumentProperty for index %d (input %d)", argi, argi);
+        _logger.debug("Before change: %s", oss.str().c_str());
+        _inputs[argi].basePtr = _inputs[argi].data = const_cast<void*>(argv);
+        // Add check here
+        // size_t shapesSize = shapes.size();
+        for (int64_t i = 0; i < _inputs[argi].dimsCount; i++) {
+            _inputs[argi].sizes[i] = shapes[i];
+        }
+
+        // size_t stridesSize = strides.size();
+        for (int64_t i = 0; i < _inputs[argi].dimsCount; i++) {
+            _inputs[argi].strides[i] = strides[i];
+        }
+
+        // Need stride based on element but not byte
+        _inputs[argi].updateStride();
+        oss.clear();
+        oss.str("");
+        oss << _inputs[argi];
+        _logger.debug("After change: %s", oss.str().c_str());
+
+    } else {
+        auto idx = argi - _inputs.size();
+        _logger.debug("setArgumentValue for index %d (output %d)", argi, idx);
+        if (idx < _outputs.size()) {
+            std::ostringstream oss;
+            oss << _outputs[idx];
+            _logger.debug("Before change: %s", oss.str().c_str());
+            _outputs[idx].basePtr = _outputs[idx].data = const_cast<void*>(argv);
+
+            // size_t shapesSize = shapes.size();
+            for (int64_t i = 0; i < _outputs[idx].dimsCount; i++) {
+                _outputs[idx].sizes[i] = shapes[i];
+            }
+
+            // size_t stridesSize = strides.size();
+            for (int64_t i = 0; i < _outputs[idx].dimsCount; i++) {
+                _outputs[idx].strides[i] = strides[i];
+            }
+
+            // Need stride based on element but not byte
+            _outputs[idx].updateStride();
+            oss.clear();
+            oss.str("");
+            oss << _outputs[idx];
+            _logger.debug("After change: %s", oss.str().c_str());
+        }
+    }
+}
 class IRGraphImpl : public IRGraph::Impl {
 public:
     using MemRefType = IRGraph::MemRefType;
@@ -70,14 +140,6 @@ public:
     uint64_t getNumSubgraphs() override {
         return _engineProperties.numOfSubGraphs;
     }
-    void executeGraph(std::vector<MemRefType>& inputs,
-                      std::vector<MemRefType>& outputs,
-                      const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
-                      std::vector<ze_command_list_handle_t>& commandLists,
-                      ze_command_queue_handle_t commandQueue,
-                      ze_fence_handle_t inferenceFence,
-                      ze_event_handle_t event,
-                      ze_graph_profiling_pool_handle_t profiling);
     void executeGraph(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
                       IRGraph::GraphArguments& args,
                       std::vector<ze_command_list_handle_t>& commandLists,
@@ -282,12 +344,14 @@ void IRGraphImpl::prepareMetadata(NetworkMetadata& metadata) {
         if (npuMLIRRuntimeGetMetadata(_engine, i, &arg, &meta, upperBound.data()) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
             OPENVINO_THROW("Failed to get MLIR runtime metadata");
         }
+        IODescriptor ioDesc = getIODescriptor(arg, meta);
+        ioDesc.indexUsedByDriver = i;
         switch (arg.type) {
         case ZE_GRAPH_ARGUMENT_TYPE_INPUT: {
-            metadata.inputs.push_back(getIODescriptor(arg, meta));
+            metadata.inputs.push_back(ioDesc);
         } break;
         case ZE_GRAPH_ARGUMENT_TYPE_OUTPUT: {
-            metadata.outputs.push_back(getIODescriptor(arg, meta));
+            metadata.outputs.push_back(ioDesc);
         } break;
         default: {
             OPENVINO_THROW("Invalid ze_graph_argument_type_t found in ze_graph_argument_properties_3_t object: ",
@@ -399,47 +463,33 @@ void IRGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>& zer
                                ze_fence_handle_t fence,
                                ze_event_handle_t event,
                                ze_graph_profiling_pool_handle_t profiling) {
-    executeGraph(args._inputs, args._outputs, zeroInitStruct, commandLists, commandQueue, fence, event, profiling);
-}
+    npu_mlir_runtime_execute_params_t* params = &args._executeParams;
 
-void IRGraphImpl::executeGraph(std::vector<MemRefType>& inputMefRefs,
-                               std::vector<MemRefType>& outputMemRefs,
-                               const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
-                               std::vector<ze_command_list_handle_t>& commandLists,
-                               ze_command_queue_handle_t commandQueue,
-                               ze_fence_handle_t fence,
-                               ze_event_handle_t event,
-                               ze_graph_profiling_pool_handle_t) {
-    auto contextHandle = zeroInitStruct->getContext();
-    auto deviceHandle = zeroInitStruct->getDevice();
-    auto ddiTableHandle = zeroInitStruct->getGraphDdiTable().getImpl();
-
-    std::vector<npu_mlir_runtime_mem_ref_handle_t> inputs, outputs;
-    for (auto& in : inputMefRefs) {
+    for (auto& in : args._inputs) {
         std::cout << "before update input" << in << std::endl;
         in.UpdateMemRefHandleStatus();
-        inputs.push_back(in.memRef);
+        args._inputMemRefs.push_back(in.memRef);
     }
-    for (auto& out : outputMemRefs) {
+    for (auto& out : args._outputs) {
         std::cout << "before update output" << out << std::endl;
         out.UpdateMemRefHandleStatus();
-        outputs.push_back(out.memRef);
+        args._outputMemRefs.push_back(out.memRef);
     }
-    npu_mlir_runtime_execute_params_t params;
-    params.pInputs = inputs.data();
-    params.numOfInputs = static_cast<uint32_t>(inputs.size());
-    params.pOutputs = outputs.data();
-    params.numOfOutputs = static_cast<uint32_t>(outputs.size());
-    params.ctx = contextHandle;
-    params.device = deviceHandle;
-    params.graphDdiTableExt = ddiTableHandle;
-    params.commandLists = commandLists.data();
-    params.numCommandLists = static_cast<uint64_t>(commandLists.size());
-    params.commandQueue = commandQueue;
-    params.inferenceFence = fence;
-    params.event = event;
 
-    if (npuMLIRRuntimeExecute(_engine, &params) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+    params->pInputs = args._inputMemRefs.data();
+    params->numOfInputs = static_cast<uint32_t>(args._inputMemRefs.size());
+    params->pOutputs = args._outputMemRefs.data();
+    params->numOfOutputs = static_cast<uint32_t>(args._outputMemRefs.size());
+    params->ctx = zeroInitStruct->getContext();
+    params->device = zeroInitStruct->getDevice();
+    params->graphDdiTableExt = zeroInitStruct->getGraphDdiTable().getImpl();
+    params->commandLists = commandLists.data();
+    params->numCommandLists = static_cast<uint64_t>(commandLists.size());
+    params->commandQueue = commandQueue;
+    params->inferenceFence = fence;
+    params->event = event;
+
+    if (npuMLIRRuntimeExecute(_engine, params) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
         OPENVINO_THROW("Failed to execute MLIR runtime engine");
     }
 }

@@ -103,6 +103,10 @@ _levelZeroOutputTensors(output_tensors)*/
 
     for (size_t i = 0; i < _number_of_command_lists; i++) {
         _logger.debug("DynamicPipeline - set args for command list number: %zu", i);
+
+        _command_lists.at(i)->bind(dynamic_cast<intel_npu::IRGraph*>(graph.get()));
+        auto& graphArguments = _command_lists.at(i)->getBinding();
+
         size_t io_index = 0;
         for (const auto& desc : _graph->get_metadata().inputs) {
             // if (desc.isMainInputWeights) {
@@ -112,11 +116,16 @@ _levelZeroOutputTensors(output_tensors)*/
 
             if (input_tensors.at(io_index).size() > 1) {
                 _logger.debug("DynamicPipeline - set args for input index: %zu", io_index);
-
+                // Can remove
                 irGraph->set_argument_property(desc.indexUsedByDriver,
                                                input_tensors.at(io_index).at(i)->data(),
                                                input_tensors.at(io_index).at(i)->get_strides(),
                                                input_tensors.at(io_index).at(i)->get_shape());
+
+                graphArguments.setArgumentProperty(desc.indexUsedByDriver,
+                                                   input_tensors.at(io_index).at(i)->data(),
+                                                   input_tensors.at(io_index).at(i)->get_strides(),
+                                                   input_tensors.at(io_index).at(i)->get_shape());
 
                 ++io_index;
                 continue;
@@ -130,6 +139,13 @@ _levelZeroOutputTensors(output_tensors)*/
                 input_tensors.at(io_index).at(0)->get_strides(),
                 input_tensors.at(io_index).at(0)->get_shape());
 
+            graphArguments.setArgumentProperty(
+                desc.indexUsedByDriver,
+                static_cast<unsigned char*>(input_tensors.at(io_index).at(0)->data()) +
+                    (i * input_tensors.at(io_index).at(0)->get_byte_size()) / _number_of_command_lists,
+                input_tensors.at(io_index).at(0)->get_strides(),
+                input_tensors.at(io_index).at(0)->get_shape());
+
             ++io_index;
         }
 
@@ -137,6 +153,13 @@ _levelZeroOutputTensors(output_tensors)*/
         for (const auto& desc : _graph->get_metadata().outputs) {
             _logger.debug("DynamicPipeline - update tensor property for output desc index: %d", desc.indexUsedByDriver);
             irGraph->set_argument_property(
+                desc.indexUsedByDriver,
+                static_cast<unsigned char*>(output_tensors.at(io_index)->data()) +
+                    (i * output_tensors.at(io_index)->get_byte_size()) / _number_of_command_lists,
+                output_tensors.at(io_index)->get_strides(),
+                output_tensors.at(io_index)->get_shape());
+
+            graphArguments.setArgumentProperty(
                 desc.indexUsedByDriver,
                 static_cast<unsigned char*>(output_tensors.at(io_index)->data()) +
                     (i * output_tensors.at(io_index)->get_byte_size()) / _number_of_command_lists,
@@ -161,7 +184,7 @@ _levelZeroOutputTensors(output_tensors)*/
         //     _command_lists.at(i)->appendNpuTimestamp(reinterpret_cast<uint64_t*>(_npu_profiling->npu_ts_infer_start));
         // }
 
-        _command_lists.at(i)->bind(dynamic_cast<intel_npu::IRGraph*>(graph.get()));
+        //_command_lists.at(i)->bind(dynamic_cast<intel_npu::IRGraph*>(graph.get()));
 
         // /// Old graph execute called here
 
@@ -224,7 +247,7 @@ void DynamicPipeline::push() {
         }
 
         auto& command_lists = _command_lists.at(i);
-        auto graphArguments = command_lists->getBinding();
+        auto& graphArguments = command_lists->getBinding();
         _logger.debug("Inputs info for IRGraph:");
         for (auto& memType : graphArguments._inputs) {
             _logger.debug("input: %s", memType.toString().c_str());
@@ -233,6 +256,9 @@ void DynamicPipeline::push() {
         for (auto& memType : graphArguments._outputs) {
             _logger.debug("output: %s", memType.toString().c_str());
         }
+        // Before call execute, shall clear memref containers in graphArguments to avoid dangling ptrs
+        graphArguments._inputMemRefs.clear();
+        graphArguments._outputMemRefs.clear();
 
         dynamic_cast<IRGraph*>(_graph.get())
             ->execute(_init_structs,
