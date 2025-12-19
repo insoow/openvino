@@ -835,8 +835,17 @@ void ZeroDynamicInferRequest::infer_async() {
             std::vector<IRGraph::MemRefType> inputPros = graphArgs._inputs;
             std::vector<IRGraph::MemRefType> outputPros = graphArgs._outputs;
 
+            // TENTATIVE CODE TO ALLOCATE a memref handle
+            for (size_t i = 0; i < inputPros.size(); ++i) {
+                inputPros[i].UpdateMemRefHandleStatus();
+            }
+
+            for (size_t i = 0; i < outputPros.size(); ++i) {
+                outputPros[i].UpdateMemRefHandleStatus();
+            }
+
             // TODO: Skip predict output shape to avoid segment fault
-            // irGraph->predict_output_shape(inputPros, outputPros);
+            irGraph->predict_output_shape(inputPros, outputPros);
 
             bool shapeChanged = false;
             for (size_t i = 0; i < outputPros.size(); i++) {

@@ -501,11 +501,27 @@ void IRGraphImpl::predictOutputShape(std::vector<MemRefType>& inputDescriptors,
         in.UpdateMemRefHandleStatus();
         inputs.push_back(in.memRef);
     }
+    std::vector<std::vector<uint64_t>> output_shapes;
     std::vector<npu_mlir_runtime_mem_ref_handle_t> outputs;
+    size_t index = 0;
     for (auto& out : outputDescriptors) {
-        out.UpdateMemRefHandleStatus();
-        outputs.push_back(out.memRef);
+        npu_mlir_runtime_mem_ref_handle_t handle;
+        auto result = npuMLIRRuntimeCreateMemRef(1, &handle);
+        if (result != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create MemRef handle");
+        }
+        output_shapes.push_back(std::vector<uint64_t>(out.dimsCount, 0));
+        std::vector<int64_t> sizes(1, out.dimsCount);
+        std::vector<int64_t> strides(1, 1);
+        void* basePtr = output_shapes[index].data();
+        result = npuMLIRRuntimeSetMemRef(handle, basePtr, basePtr, 0, sizes.data(), strides.data(), 1);
+        if (result != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to set MemRef handle");
+        }
+
+        outputs.push_back(handle);
     }
+
     npu_mlir_runtime_predict_output_shape_params_t params;
     params.pInputs = inputs.data();
     params.numOfInputs = static_cast<uint32_t>(inputs.size());
