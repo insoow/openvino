@@ -14,14 +14,7 @@
 #include "openvino/runtime/intel_npu/remote_properties.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 #include "zero_variable_state.hpp"
-
-using namespace intel_npu;
-
-namespace {
-
-constexpr std::size_t SINGLE_TENSOR = 0;
-constexpr bool INPUT = true;
-constexpr bool OUTPUT = false;
+namespace intel_npu {
 
 std::optional<size_t> determine_dynamic_batch_size(const IODescriptor& desc,
                                                    const ov::PartialShape& ioShape,
@@ -69,8 +62,6 @@ void* get_tensor_data_ptr(const std::shared_ptr<ov::ITensor>& tensor) {
         return tensor->data();
     }
 }
-
-}  // namespace
 
 //------------------------------------------------------------------------------
 ZeroInferRequest::ZeroInferRequest(const std::shared_ptr<ZeroInitStructsHolder>& initStructs,
@@ -246,8 +237,12 @@ void ZeroInferRequest::create_pipeline() {
         }
     }
 
-    _logger.debug("ZeroInferRequest::create_pipeline - constructing pipeline");
+    construct_pipeline();
+}
 
+void ZeroInferRequest::construct_pipeline() {
+    _logger.debug("ZeroInferRequest::create_pipeline - constructing pipeline");
+    auto batchSize = _graph->get_batch_size();
     // Construct pipeline
     _pipeline = std::make_unique<Pipeline>(_config,
                                            _initStructs,
@@ -901,3 +896,5 @@ std::shared_ptr<ZeroTensor>& ZeroInferRequest::get_level_zero_input(size_t index
 std::vector<std::shared_ptr<ZeroTensor>>& ZeroInferRequest::get_level_zero_inputs(size_t index) const {
     return _levelZeroInputTensors.at(index);
 }
+
+}  // namespace intel_npu
