@@ -184,9 +184,12 @@ public:
                                   ze_command_queue_handle_t commandQueue,
                                   ze_fence_handle_t fence,
                                   ze_event_handle_t event,
-                                  ze_graph_profiling_pool_handle_t profiling) = 0;
+                                  ze_graph_profiling_pool_handle_t profiling,
+                                  npu_mlir_runtime_execution_context_handle_t executionContext) = 0;
         virtual void predictOutputShape(std::vector<MemRefType>& inputDescriptors,
                                         std::vector<MemRefType>& outputDescriptors) = 0;
+        virtual npu_mlir_runtime_execution_context_handle_t createExecutionContext() = 0;
+        virtual void destroyExecutionContext(npu_mlir_runtime_execution_context_handle_t) = 0;
         virtual ~Impl() {};
     };
 
@@ -239,7 +242,12 @@ public:
                  ze_command_queue_handle_t commandQueue,
                  ze_fence_handle_t inferenceFence,
                  ze_event_handle_t event,
-                 ze_graph_profiling_pool_handle_t profiling);
+                 ze_graph_profiling_pool_handle_t profiling,
+                 npu_mlir_runtime_execution_context_handle_t executionContext);
+
+    void update_mutable_commandlist(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
+                 GraphArguments& args,
+                 const std::vector<uint64_t>& argIndexArray);
 
     void getBinding(GraphArguments& args);
 
@@ -247,6 +255,8 @@ public:
 
     void predict_output_shape(std::vector<MemRefType>& inputDescriptors, std::vector<MemRefType>& outputDescriptors);
 
+    npu_mlir_runtime_execution_context_handle_t createExecutionContext();
+    void destroyExecutionContext(npu_mlir_runtime_execution_context_handle_t);
 private:
     bool release_blob(const Config& config);
     std::optional<size_t> determine_batch_size();
