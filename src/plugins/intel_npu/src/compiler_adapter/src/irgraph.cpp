@@ -112,9 +112,13 @@ public:
                       ze_command_queue_handle_t commandQueue,
                       ze_fence_handle_t inferenceFence,
                       ze_event_handle_t event,
-                      ze_graph_profiling_pool_handle_t profiling) override;
+                      ze_graph_profiling_pool_handle_t profiling,
+                      npu_mlir_runtime_execution_context_handle_t executionContext) override;
     void getBinding(IRGraph::GraphArguments& binding) override;
 
+    void updateMutableCommandList(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
+                                  IRGraph::GraphArguments& args,
+                                  const std::vector<uint64_t>& argIndexArray);
     virtual ~IRGraphImpl() {
         destroy();
     }
@@ -129,6 +133,8 @@ public:
     void predictOutputShape(std::vector<MemRefType>& inputDescriptors,
                             std::vector<MemRefType>& outputDescriptors) override;
 
+    npu_mlir_runtime_execution_context_handle_t createExecutionContext() override;
+    void destroyExecutionContext(npu_mlir_runtime_execution_context_handle_t) override;
 public:
     npu_mlir_runtime_handle_t _engine = nullptr;
     npu_mlir_runtime_properties_t _engineProperties;
@@ -380,7 +386,8 @@ void IRGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>& zer
                                ze_command_queue_handle_t commandQueue,
                                ze_fence_handle_t fence,
                                ze_event_handle_t event,
-                               ze_graph_profiling_pool_handle_t profiling) {
+                               ze_graph_profiling_pool_handle_t profiling,
+                               npu_mlir_runtime_execution_context_handle_t executionContext) {
     npu_mlir_runtime_execute_params_t* params = &args._executeParams;
 
     // Only need to store handles in MemRef container once, then update them in following executions
@@ -412,8 +419,18 @@ void IRGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>& zer
     params->commandQueue = commandQueue;
     params->inferenceFence = fence;
     params->event = event;
+    params->executionContext = executionContext;
 
     if (npuMLIRRuntimeExecute(_engine, params) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+        OPENVINO_THROW("Failed to execute MLIR runtime engine");
+    }
+}
+
+void IRGraphImpl::updateMutableCommandList(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
+                               IRGraph::GraphArguments& args,
+                               const std::vector<uint64_t>& argIndexArray) {
+    npu_mlir_runtime_execute_params_t* params = &args._executeParams;
+    if (npuMLIRRuntimeUpdateMutableCommandList(_engine, params, const_cast<uint64_t*>(argIndexArray.data()), argIndexArray.size()) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
         OPENVINO_THROW("Failed to execute MLIR runtime engine");
     }
 }
@@ -443,6 +460,26 @@ void IRGraphImpl::predictOutputShape(std::vector<MemRefType>& inputDescriptors,
         for (auto& out : outputDescriptors) {
             out.alignWithHandle();
         }
+        _logger.debug("Output shape prediction is done successfully.");
+    }
+}
+
+npu_mlir_runtime_execution_context_handle_t IRGraphImpl::createExecutionContext()
+{
+    npu_mlir_runtime_execution_context_handle_t handle = nullptr;
+    if (npuMLIRRuntimeCreateExecutionContext(_engine, &handle) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+        OPENVINO_THROW("Failed to create an MLIR execution context");
+    } else {
+        _logger.debug("Output shape prediction is done successfully.");
+    }
+    return handle;
+}
+
+void IRGraphImpl::destroyExecutionContext(npu_mlir_runtime_execution_context_handle_t handle)
+{
+    if (npuMLIRRuntimeDestroyExecutionContext(handle) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+        OPENVINO_THROW("Failed to destroy an MLIR execution context");
+    } else {
         _logger.debug("Output shape prediction is done successfully.");
     }
 }
@@ -798,13 +835,25 @@ void IRGraph::execute(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStru
                       ze_command_queue_handle_t commandQueue,
                       ze_fence_handle_t inferenceFence,
                       ze_event_handle_t event,
-                      ze_graph_profiling_pool_handle_t profiling) {
+                      ze_graph_profiling_pool_handle_t profiling,
+                      npu_mlir_runtime_execution_context_handle_t executionContext) {
     auto impl = reinterpret_cast<IRGraphImpl*>(_impl.get());
 
     if (impl == nullptr)
         return;
 
-    impl->executeGraph(zeroInitStruct, args, commandLists, commandQueue, inferenceFence, event, profiling);
+    impl->executeGraph(zeroInitStruct, args, commandLists, commandQueue, inferenceFence, event, profiling, executionContext);
+}
+
+void IRGraph::update_mutable_commandlist(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
+                      IRGraph::GraphArguments& args,
+    const std::vector<uint64_t>& argIndexArray) {
+    auto impl = reinterpret_cast<IRGraphImpl*>(_impl.get());
+
+    if (impl == nullptr)
+        return;
+
+    impl->updateMutableCommandList(zeroInitStruct, args, argIndexArray);
 }
 
 void IRGraph::getBinding(GraphArguments& args) {
@@ -828,6 +877,26 @@ void IRGraph::predict_output_shape(std::vector<MemRefType>& inputDescriptors,
         return;
 
     impl->predictOutputShape(inputDescriptors, outputDescriptors);
+}
+
+npu_mlir_runtime_execution_context_handle_t IRGraph::createExecutionContext()
+{
+    auto impl = reinterpret_cast<IRGraphImpl*>(_impl.get());
+
+    if (impl == nullptr)
+        return nullptr;
+
+    return impl->createExecutionContext();
+}
+
+void IRGraph::destroyExecutionContext(npu_mlir_runtime_execution_context_handle_t handle)
+{
+    auto impl = reinterpret_cast<IRGraphImpl*>(_impl.get());
+
+    if (impl == nullptr)
+        return;
+
+    impl->destroyExecutionContext(handle);
 }
 
 }  // namespace intel_npu
