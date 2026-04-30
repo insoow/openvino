@@ -24,7 +24,10 @@ public:
     using MemRefType = DynamicGraph::MemRefType;
 
 public:
-    DynamicGraphImpl() : _engineProperties{}, _logger("DynamicGraphImpl", Logger::global().level()) {}
+    DynamicGraphImpl(bool isOptimizedDynamicStridesSupported)
+        : _engineProperties{},
+          _isOptimizedDynamicStridesSupported(isOptimizedDynamicStridesSupported),
+          _logger("DynamicGraphImpl", Logger::global().level()) {}
     void initialize(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) override;
     void createExecutionEngine(std::optional<ov::Tensor>& blob);
     void prepareMetadata(NetworkMetadata& metadata);
@@ -62,6 +65,7 @@ public:
     npu_vm_runtime_properties_t _engineProperties;
     DynamicGraph::GraphArguments _binding;
     bool _initialized = false;
+    bool _isOptimizedDynamicStridesSupported = false;
     Logger _logger;
 };
 
@@ -309,9 +313,12 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
         args._impl ? std::static_pointer_cast<DynamicGraph::GraphArgumentsImpl>(args._impl)
                    : std::make_shared<DynamicGraph::GraphArgumentsImpl>();
 
+    std::vector<uint64_t> commandListIndexArray;
     bool noTensorChange = true;
     npu_vm_runtime_execute_params_t* params = &argsImpl->_executeParams;
-    for (auto& in : args._inputs) {
+    auto inputSize = args._inputs.size();
+    for (size_t i = 0; i < inputSize; ++i) {
+        auto& in = args._inputs[i];
         std::shared_ptr<DynamicGraph::MemRefTypeImpl> inImpl =
             std::static_pointer_cast<DynamicGraph::MemRefTypeImpl>(in._impl);
         if (inImpl == nullptr) {
@@ -323,9 +330,18 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
             argsImpl->_inputMemRefs.push_back(inImpl->_memRef);
         } else if (inImpl->_ptrUpdated || inImpl->_shapeUpdated || inImpl->_strideUpdated) {
             noTensorChange = false;
+            if (!inImpl->_shapeUpdated && (inImpl->_strideUpdated || inImpl->_strideUpdated)) {
+                _logger.debug("Input tensor stride or pointer change detected for index %d, but shape is not updated, "
+                              "which is an optimized case for dynamic shape with static dimensions. ",
+                              static_cast<int>(i));
+                commandListIndexArray.push_back(i);
+            } else {
+                _logger.debug("Input tensor pointer change detected for index %d", static_cast<int>(i));
+            }
         }
     }
-    for (auto& out : args._outputs) {
+    for (size_t i = 0; i < args._outputs.size(); ++i) {
+        auto& out = args._outputs[i];
         std::shared_ptr<DynamicGraph::MemRefTypeImpl> outImpl =
             std::static_pointer_cast<DynamicGraph::MemRefTypeImpl>(out._impl);
         if (outImpl == nullptr) {
@@ -337,6 +353,14 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
             argsImpl->_outputMemRefs.push_back(outImpl->_memRef);
         } else if (outImpl->_ptrUpdated || outImpl->_shapeUpdated || outImpl->_strideUpdated) {
             noTensorChange = false;
+            if (!outImpl->_shapeUpdated && (outImpl->_strideUpdated || outImpl->_ptrUpdated)) {
+                _logger.debug("Output tensor stride or pointer change detected for index %d, but shape is not updated, "
+                              "which is an optimized case for dynamic shape with static dimensions. ",
+                              static_cast<int>(i));
+                commandListIndexArray.push_back(inputSize + i);
+            } else {
+                _logger.debug("Output tensor pointer change detected for index %d", static_cast<int>(i));
+            }
         }
     }
 
@@ -348,7 +372,28 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
             zeCommandListReset(cmdList);
         }
     } else {
-        _logger.debug("Reuse command list without update since no tensor change detected");
+        if (!commandListIndexArray.empty()) {
+            _logger.debug("Update command list with new tensor pointer");
+            if (params->executionContext == nullptr) {
+                OPENVINO_THROW(
+                    "Execution context is not created, can not reuse command list with UpdateMutableCommandList API");
+            }
+
+            if (npuVMRuntimeUpdateMutableCommandList(_engine,
+                                                     params,
+                                                     const_cast<uint64_t*>(commandListIndexArray.data()),
+                                                     commandListIndexArray.size()) != NPU_VM_RUNTIME_RESULT_SUCCESS) {
+                OPENVINO_THROW("Failed to execute VM runtime engine to update commandlist");
+            }
+
+            // according to spec, CloseCommandList should be called after
+            // UpdateMutableCommandList is called.
+            for (auto& cmdList : commandLists) {
+                zeCommandListClose(cmdList);
+            }
+        } else {
+            _logger.debug("Reuse command list without update since no tensor change detected");
+        }
 
         auto result = zeCommandQueueExecuteCommandLists(commandQueue,
                                                         static_cast<uint32_t>(commandLists.size()),
@@ -441,9 +486,11 @@ void DynamicGraphImpl::predictOutputShape(std::vector<MemRefType>& inputDescript
 DynamicGraph::DynamicGraph(const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
                            ov::Tensor blob,
                            bool blobAllocatedByPlugin,
-                           const FilteredConfig& config)
+                           const FilteredConfig& config,
+                           bool isOptimizedDynamicStridesSupported)
     : _zeroInitStruct(zeroInitStruct),
       _blob(std::move(blob)),
+      _isOptimizedDynamicStridesSupported(isOptimizedDynamicStridesSupported),
       _logger("DynamicGraph", config.get<LOG_LEVEL>()) {
     _logger.info("Create DynamicGraph");
     if (!config.get<CREATE_EXECUTOR>() || config.get<DEFER_WEIGHTS_LOAD>()) {
@@ -451,7 +498,7 @@ DynamicGraph::DynamicGraph(const std::shared_ptr<ZeroInitStructsHolder>& zeroIni
         return;
     }
 
-    _impl = std::make_unique<DynamicGraphImpl>();
+    _impl = std::make_unique<DynamicGraphImpl>(isOptimizedDynamicStridesSupported);
 
     // TODO: metadata needs to be parsed even when CREATE_EXECUTOR is 0 or DEFER_WEIGHTS_LOAD is YES, keep here to
     // support pure compilation without vm runtime initialize VM execution engine, metadata, input&output
@@ -583,7 +630,7 @@ void DynamicGraph::initialize_impl(const FilteredConfig& config) {
     _logger.debug("Graph initialize start");
 
     if (!_impl) {
-        _impl = std::make_unique<DynamicGraphImpl>();
+        _impl = std::make_unique<DynamicGraphImpl>(_isOptimizedDynamicStridesSupported);
         // initialize VM execution engine, metadata, input&output descriptors
         _impl->initialize(_blob, _metadata);
         _num_of_subgraphs = _impl->getNumSubgraphs();
