@@ -16,6 +16,7 @@
 #include "openvino/pass/serialize.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 #include "shared_test_classes/base/ov_behavior_test_utils.hpp"
+#include "intel_npu/utils/zero/zero_init.hpp"
 
 namespace ov {
 namespace test {
@@ -657,7 +658,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithAlignedTensor) {
                             testContext.reqReference,
                             inTensor1,
                             "CompileAndInferWithAlignedTensor_second");
-
+    
     if (::intel_npu::ZeroInitStructsHolder::getInstance()->isExternalMemoryStandardAllocationSupported()) {
         // Importable external memory should switch execution to the new tensor pointer.
         ASSERT_TRUE(logContains(logCapture, "Update command list with new tensor pointer"))
