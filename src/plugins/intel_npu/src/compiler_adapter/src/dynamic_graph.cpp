@@ -329,13 +329,13 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
         if (args._impl == nullptr) {
             argsImpl->_inputMemRefs.push_back(inImpl->_memRef);
         } else if (inImpl->_ptrUpdated || inImpl->_shapeUpdated || inImpl->_strideUpdated) {
-            noTensorChange = false;
-            if (!inImpl->_shapeUpdated && (inImpl->_strideUpdated || inImpl->_strideUpdated)) {
+            if (!inImpl->_shapeUpdated && !inImpl->_strideUpdated) {
                 _logger.debug("Input tensor stride or pointer change detected for index %d, but shape is not updated, "
                               "which is an optimized case for dynamic shape with static dimensions. ",
                               static_cast<int>(i));
                 commandListIndexArray.push_back(i);
             } else {
+                noTensorChange = false;
                 _logger.debug("Input tensor pointer change detected for index %d", static_cast<int>(i));
             }
         }
@@ -352,13 +352,13 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
         if (args._impl == nullptr) {
             argsImpl->_outputMemRefs.push_back(outImpl->_memRef);
         } else if (outImpl->_ptrUpdated || outImpl->_shapeUpdated || outImpl->_strideUpdated) {
-            noTensorChange = false;
-            if (!outImpl->_shapeUpdated && (outImpl->_strideUpdated || outImpl->_ptrUpdated)) {
+            if (!outImpl->_shapeUpdated && !outImpl->_strideUpdated) {
                 _logger.debug("Output tensor stride or pointer change detected for index %d, but shape is not updated, "
                               "which is an optimized case for dynamic shape with static dimensions. ",
                               static_cast<int>(i));
                 commandListIndexArray.push_back(inputSize + i);
             } else {
+                noTensorChange = false;
                 _logger.debug("Output tensor pointer change detected for index %d", static_cast<int>(i));
             }
         }
