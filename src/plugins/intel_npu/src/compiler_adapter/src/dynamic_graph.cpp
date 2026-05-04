@@ -22,6 +22,11 @@ namespace intel_npu {
 class DynamicGraphImpl : public DynamicGraph::Impl {
 public:
     using MemRefType = DynamicGraph::MemRefType;
+    enum class InferenceExecutionMode {
+        DEFAULT,
+        FORCE_COMMNAD_LIST_RECORDING,
+        FORCE_UPDATE_MUTABLE_COMMAND_LIST,
+    };
 
 public:
     DynamicGraphImpl(bool isOptimizedDynamicStridesSupported)
@@ -67,12 +72,32 @@ public:
     bool _initialized = false;
     bool _isOptimizedDynamicStridesSupported = false;
     Logger _logger;
+    InferenceExecutionMode _inferenceExecutionMode = InferenceExecutionMode::DEFAULT;
 };
 
 void DynamicGraphImpl::initialize(std::optional<ov::Tensor>& blob, NetworkMetadata& metadata) {
     if (!_initialized) {
         initializeDynamicGraphExecution(blob, metadata);
         _initialized = true;
+
+        auto InferenceExecutionModeValue = std::getenv("OV_INFERENCE_EXECUTION_MODE");
+        if (InferenceExecutionModeValue != nullptr) {
+            std::string InferenceExecutionModeStr = InferenceExecutionModeValue;
+            if (InferenceExecutionModeStr == "1") {
+                _inferenceExecutionMode = InferenceExecutionMode::FORCE_COMMNAD_LIST_RECORDING;
+                _logger.info("OV_INFERENCE_EXECUTION_MODE is set to FORCE_COMMNAD_LIST_RECORDING(%s), plugin will try to record command lists again",
+                         InferenceExecutionModeValue);
+            } else if (InferenceExecutionModeStr == "2") {
+                _inferenceExecutionMode = InferenceExecutionMode::FORCE_UPDATE_MUTABLE_COMMAND_LIST;
+                _logger.info("OV_INFERENCE_EXECUTION_MODE is set to FORCE_UPDATE_MUTABLE_COMMAND_LIST(%s)", InferenceExecutionModeValue );
+            } else {
+                _logger.warning("Unknown OV_INFERENCE_EXECUTION_MODE value: %s, fallback to default execution mode.",
+                             InferenceExecutionModeValue);
+            }
+        }
+        else {
+            _logger.info("OV_INFERENCE_EXECUTION_MODE is a default execution mode.");
+        }
     }
 
     _binding._inputs.resize(metadata.inputs.size());
@@ -314,9 +339,10 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
                    : std::make_shared<DynamicGraph::GraphArgumentsImpl>();
 
     std::vector<uint64_t> commandListIndexArray;
-    bool noTensorChange = true;
+    bool commandListRecordingRequired = _inferenceExecutionMode == InferenceExecutionMode::FORCE_COMMNAD_LIST_RECORDING;
     npu_vm_runtime_execute_params_t* params = &argsImpl->_executeParams;
     auto inputSize = args._inputs.size();
+    
     for (size_t i = 0; i < inputSize; ++i) {
         auto& in = args._inputs[i];
         std::shared_ptr<DynamicGraph::MemRefTypeImpl> inImpl =
@@ -326,17 +352,18 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
             in._impl = inImpl;
         }
         inImpl->UpdateMemRefHandleStatus(in);
+
         if (args._impl == nullptr) {
             argsImpl->_inputMemRefs.push_back(inImpl->_memRef);
-        } else if (inImpl->_ptrUpdated || inImpl->_shapeUpdated || inImpl->_strideUpdated) {
-            if (!inImpl->_shapeUpdated && !inImpl->_strideUpdated) {
-                _logger.debug("Input tensor stride or pointer change detected for index %d, but shape is not updated, "
-                              "which is an optimized case for dynamic shape with static dimensions. ",
-                              static_cast<int>(i));
+        } else if (commandListRecordingRequired == false) {
+            if (inImpl->isCommandListRecordingRequired()) {
+                commandListRecordingRequired = true;
+                _logger.debug("command list recording is required as shape or strides of input(index) %d are updated", static_cast<int>(i));
+            } else if (inImpl->isUpdateMutableCommandListApplicable() || _inferenceExecutionMode == InferenceExecutionMode::FORCE_UPDATE_MUTABLE_COMMAND_LIST) {
+                _logger.debug("Input tensor stride or pointer change detected for index %d, but shape and strides are not updated, "
+                                "which is an optimized case for dynamic shape with static dimensions. ",
+                                static_cast<int>(i));
                 commandListIndexArray.push_back(i);
-            } else {
-                noTensorChange = false;
-                _logger.debug("Input tensor pointer change detected for index %d", static_cast<int>(i));
             }
         }
     }
@@ -351,20 +378,20 @@ void DynamicGraphImpl::executeGraph(const std::shared_ptr<ZeroInitStructsHolder>
         outImpl->UpdateMemRefHandleStatus(out);
         if (args._impl == nullptr) {
             argsImpl->_outputMemRefs.push_back(outImpl->_memRef);
-        } else if (outImpl->_ptrUpdated || outImpl->_shapeUpdated || outImpl->_strideUpdated) {
-            if (!outImpl->_shapeUpdated && !outImpl->_strideUpdated) {
-                _logger.debug("Output tensor stride or pointer change detected for index %d, but shape is not updated, "
+        } else if (commandListRecordingRequired == false) {
+            if (outImpl->isCommandListRecordingRequired()) {
+                commandListRecordingRequired = true;
+                _logger.debug("command list recording is required as shape or strides of input(index) %d are updated", static_cast<int>(i));
+            } else if (outImpl->isUpdateMutableCommandListApplicable() || _inferenceExecutionMode == InferenceExecutionMode::FORCE_UPDATE_MUTABLE_COMMAND_LIST) {
+                _logger.debug("Output pointer change detected for index %d, but shape and strides are not updated, "
                               "which is an optimized case for dynamic shape with static dimensions. ",
                               static_cast<int>(i));
                 commandListIndexArray.push_back(inputSize + i);
-            } else {
-                noTensorChange = false;
-                _logger.debug("Output tensor pointer change detected for index %d", static_cast<int>(i));
             }
         }
     }
 
-    if (args._impl == nullptr || !noTensorChange) {
+    if (args._impl == nullptr || commandListRecordingRequired) {
         _logger.debug("Reset command list to run with runtime");
         // Reset commandLists since there are tensor with new shapes or it is the first execution, can not reuse command
         // list with update
