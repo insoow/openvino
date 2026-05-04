@@ -17,11 +17,17 @@
 namespace intel_npu {
 class DynamicGraph final : public IDynamicGraph {
 public:
+    enum class TensorUpdateFlags : uint32_t
+    {
+        NONE_UPDATED,
+        PTR_UPDATED = 0x01,
+        SHAPE_UPDATED = 0x02,
+        STRIDE_UPDATED = 0x04
+    };
+
     struct MemRefTypeImpl {
         npu_vm_runtime_mem_ref_handle_t _memRef;
-        bool _ptrUpdated = false;
-        bool _shapeUpdated = false;
-        bool _strideUpdated = false;
+        uint32_t _updatedTensorFlags = static_cast<uint32_t>(TensorUpdateFlags::NONE_UPDATED);
 
         MemRefTypeImpl() : _memRef(nullptr) {}
 
@@ -45,23 +51,19 @@ public:
                 // Check ptr
                 if (memref._basePtr != tempMemRef._basePtr || memref._data != tempMemRef._data ||
                     memref._offset != tempMemRef._offset) {
-                    _ptrUpdated = true;
+                    _updatedTensorFlags = static_cast<uint32_t>(TensorUpdateFlags::PTR_UPDATED);
                 } else {
-                    _ptrUpdated = false;
+                    _updatedTensorFlags = static_cast<uint32_t>(TensorUpdateFlags::NONE_UPDATED);
                 }
 
                 // Check shape
                 if (memref._sizes != tempMemRef._sizes) {
-                    _shapeUpdated = true;
-                } else {
-                    _shapeUpdated = false;
+                    _updatedTensorFlags |= static_cast<uint32_t>(TensorUpdateFlags::SHAPE_UPDATED);
                 }
 
                 // Check strides
                 if (memref._strides != tempMemRef._strides) {
-                    _strideUpdated = true;
-                } else {
-                    _strideUpdated = false;
+                    _updatedTensorFlags |= static_cast<uint32_t>(TensorUpdateFlags::SHAPE_UPDATED);
                 }
             }
             auto result = npuVMRuntimeSetMemRef(_memRef,
@@ -90,6 +92,16 @@ public:
                                         &memref._dimsCount) != NPU_VM_RUNTIME_RESULT_SUCCESS) {
                 throw std::runtime_error("Failed to parse MemRef handle");
             }
+        }
+
+        bool isCommandListRecordingRequired() const {
+            return _updatedTensorFlags & static_cast<uint32_t>(TensorUpdateFlags::SHAPE_UPDATED) ||
+                   _updatedTensorFlags & static_cast<uint32_t>(TensorUpdateFlags::STRIDE_UPDATED);
+        }
+
+        bool isUpdateMutableCommandListApplicable() const {
+            return (_updatedTensorFlags & static_cast<uint32_t>(TensorUpdateFlags::PTR_UPDATED))
+                == static_cast<uint32_t>(TensorUpdateFlags::PTR_UPDATED);
         }
 
     private:
