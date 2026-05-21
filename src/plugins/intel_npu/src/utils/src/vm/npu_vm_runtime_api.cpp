@@ -41,7 +41,7 @@ NPUVMRuntimeApi::NPUVMRuntimeApi(std::string_view libName) {
 }
 
 const std::shared_ptr<NPUVMRuntimeApi>& NPUVMRuntimeApi::getInstance() {
-    static std::shared_ptr<NPUVMRuntimeApi> instance = std::make_shared<NPUVMRuntimeApi>();
+    static std::shared_ptr<NPUVMRuntimeApi> instance = std::make_shared<NPUVMRuntimeApi>("npu_interpreter_runtime");
     return instance;
 }
 
