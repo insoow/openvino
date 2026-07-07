@@ -21,11 +21,19 @@ namespace ov {
 namespace test {
 namespace behavior {
 
-inline std::shared_ptr<ov::Model> createMaxPoolModel() {
-    auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::f16,
+inline std::shared_ptr<ov::Model> createMaxPoolModel(bool dynamicBatch = false) {
+    std::shared_ptr<ov::op::v0::Parameter> input;
+    if (dynamicBatch) {
+        input = std::make_shared<ov::op::v0::Parameter>(ov::element::f16,
+                                                         ov::PartialShape{ov::Dimension(1, 10), 16, 720, 1280});
+    } else {
+        input = std::make_shared<ov::op::v0::Parameter>(ov::element::f16,
                                                          ov::PartialShape{1, 16, ov::Dimension(10, 720), ov::Dimension(10, 1280)});
-    input->set_friendly_name("input1");
-
+    }
+    std::string inputName = "input1";
+    input->set_layout("NCHW");
+    input->set_friendly_name(inputName);
+    input->get_output_tensor(0).set_names({inputName});
     auto maxpool = std::make_shared<ov::op::v1::MaxPool>(input,
                                                          Strides{1, 1},
                                                          Shape{0, 0},
@@ -36,17 +44,11 @@ inline std::shared_ptr<ov::Model> createMaxPoolModel() {
     maxpool->set_friendly_name("MaxPool_2");
 
     auto result = std::make_shared<ov::op::v0::Result>(maxpool);
-    result->set_friendly_name("output");
+    std::string outputName = "output";
+    result->set_friendly_name(outputName);
+    result->set_layout("NCHW");
+    result->get_output_tensor(0).set_names({outputName});
     auto model = std::make_shared<Model>(ResultVector{result}, ParameterVector{input}, "MaxPool");
-
-    // making input and output to be NHWC
-    auto preProc = ov::preprocess::PrePostProcessor(model);
-    preProc.input(0).tensor().set_layout("NHWC");
-    preProc.input(0).model().set_layout("NCHW");
-    preProc.output(0).tensor().set_layout("NHWC");
-    preProc.output(0).model().set_layout("NCHW");
-
-    model = preProc.build();
 
     return model;
 }
@@ -310,7 +312,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithDecreasedSize) {
     auto& testContext = setupResult.context;
 
     // Start with the largest shape in the dynamic range.
-    ov::Shape shape = {1, 720, 1280, 16};
+    ov::Shape shape = {1, 16, 720, 1280};
     ov::Tensor inTensor = ov::test::utils::create_and_fill_tensor(model->input().get_element_type(), shape, 100, 0);
     setInputInferAndCompare(model,
                             testContext.reqDynamic,
@@ -343,7 +345,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithDecreasedSize) {
         << logCapture.str();
 
     logCapture.clear();
-    ov::Shape shape2 = {1, 720, 720, 16};
+    ov::Shape shape2 = {1, 16, 720, 720};
     ov::Tensor inTensor3 = ov::test::utils::create_and_fill_tensor(model->input().get_element_type(), shape2, 100, 0);
     setInputInferAndCompare(model,
                             testContext.reqDynamic,
@@ -381,7 +383,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithIncreasedSize) {
     auto& testContext = setupResult.context;
 
     // Start with a smaller valid dynamic shape.
-    ov::Shape shape = {1, 720, 720, 16};
+    ov::Shape shape = {1, 16, 720, 720};
     ov::Tensor inTensor = ov::test::utils::create_and_fill_tensor(model->input().get_element_type(), shape, 100, 0);
     setInputInferAndCompare(model,
                             testContext.reqDynamic,
@@ -414,7 +416,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithIncreasedSize) {
         << logCapture.str();
 
     logCapture.clear();
-    ov::Shape shape2 = {1, 720, 1280, 16};
+    ov::Shape shape2 = {1, 16, 720, 1280};
     ov::Tensor inTensor3 = ov::test::utils::create_and_fill_tensor(model->input().get_element_type(), shape2, 100, 0);
     setInputInferAndCompare(model,
                             testContext.reqDynamic,
@@ -450,7 +452,7 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithZeroTensor) {
     auto& testContext = setupResult.context;
 
     // Start from a regular host tensor.
-    ov::Shape shape = {1, 720, 1280, 16};
+    ov::Shape shape = {1, 16, 720, 1280};
     ov::Tensor inTensor = ov::test::utils::create_and_fill_tensor(model->input().get_element_type(), shape, 100, 0);
     setInputInferAndCompare(model,
                             testContext.reqDynamic,
@@ -552,6 +554,95 @@ TEST_P(InferWithHostCompileTests, CompileAndInferWithZeroTensor) {
         << logCapture.str();
 }
 
+using InferWithDefaultHostCompileTests = InferWithHostCompileTests;
+
+inline bool isByteCodeBlob(const std::string& blob) {
+    const size_t headerSize = std::min(blob.size(), size_t{20});
+    const std::string_view header(blob.data(), headerSize);
+    return header.find("NPUByte\x00") != std::string_view::npos;
+};
+
+inline bool isElfBlob(const std::string& blob) {
+    const size_t headerSize = std::min(blob.size(), size_t{20});
+    const std::string_view header(blob.data(), headerSize);
+    return header.find("ELF\x00") != std::string_view::npos;
+};
+
+TEST_P(InferWithDefaultHostCompileTests, CompileDynamicModelWithNoHostCompileMode) {
+    // Skip test according to plugin specific disabledTestPatterns() (if any)
+    SKIP_IF_CURRENT_TEST_IS_DISABLED()
+    if (!isTargetDevice) {
+        GTEST_SKIP() << "Skip test for current device";
+    }
+    auto model = createMaxPoolModel();
+
+    ov::CompiledModel compiledModel;
+    // Compilation shall pass since load of npu_mlir_runtime is deffered with NPU_CREATE_EXECUTOR=0
+    OV_ASSERT_NO_THROW(compiledModel = core->compile_model(model, target_device, configuration));
+
+    std::stringstream modelStream;
+    OV_ASSERT_NO_THROW(compiledModel.export_model(modelStream));
+
+    if (modelStream.str().empty()) {
+        FAIL() << "Exported model stream is empty";
+    }
+
+    ASSERT_TRUE(isByteCodeBlob(modelStream.str()))
+        << "Expected exported model to be a bytecode";
+
+    ov::InferRequest reqDynamic;
+    try {
+        ov::CompiledModel importedModel = core->import_model(modelStream, target_device);
+        reqDynamic = importedModel.create_infer_request();
+    } catch (const ov::Exception& e) {
+        if (std::string(e.what()).find("Cannot load library") == std::string::npos) {
+            FAIL() << "Expected exception message to contain 'Cannot load library', but got: " << e.what();
+        } else {
+            GTEST_SKIP() << "Cannot load library, skip test.";
+        }
+    }
+
+    OV_ASSERT_NO_THROW(reqDynamic.infer());
+}
+
+TEST_P(InferWithDefaultHostCompileTests, CompileDynamicBatchModelWithNoHostCompileMode) {
+    // Skip test according to plugin specific disabledTestPatterns() (if any)
+    SKIP_IF_CURRENT_TEST_IS_DISABLED()
+    if (!isTargetDevice) {
+        GTEST_SKIP() << "Skip test for current device";
+    }
+
+    const bool dynamicBatchDimension = true;
+    auto model = createMaxPoolModel(dynamicBatchDimension);
+
+    ov::CompiledModel compiledModel;
+    // Compilation shall pass since load of npu_mlir_runtime is deffered with NPU_CREATE_EXECUTOR=0
+    OV_ASSERT_NO_THROW(compiledModel = core->compile_model(model, target_device, configuration));
+
+    std::stringstream modelStream;
+    OV_ASSERT_NO_THROW(compiledModel.export_model(modelStream));
+
+    if (modelStream.str().empty()) {
+        FAIL() << "Exported model stream is empty";
+    }
+
+    ASSERT_TRUE(isElfBlob(modelStream.str()))
+        << "Expected exported model to be a bytecode";
+
+    ov::InferRequest req;
+    try {
+        ov::CompiledModel importedModel = core->import_model(modelStream, target_device);
+        req = importedModel.create_infer_request();
+    } catch (const ov::Exception& e) {
+        if (std::string(e.what()).find("Cannot load library") == std::string::npos) {
+            FAIL() << "Expected exception message to contain 'Cannot load library', but got: " << e.what();
+        } else {
+            GTEST_SKIP() << "Cannot load library, skip test.";
+        }
+    }
+
+    OV_ASSERT_NO_THROW(req.infer());
+}
 }  // namespace behavior
 }  // namespace test
 }  // namespace ov

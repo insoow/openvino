@@ -21,3 +21,13 @@ INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests,
                          InferWithHostCompileTests,
                          ::testing::Combine(::testing::ValuesIn(devices), ::testing::ValuesIn(configs)),
                          ov::test::utils::appendPlatformTypeTestName<InferWithHostCompileTests>);
+
+const std::vector<ov::AnyMap> defaultHostCompileconfigs = {
+    {{"NPU_COMPILER_TYPE", "PLUGIN"},
+     {"NPU_CREATE_EXECUTOR", "0"},
+     }};
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests,
+                         InferWithDefaultHostCompileTests,
+                         ::testing::Combine(::testing::ValuesIn(devices), ::testing::ValuesIn(defaultHostCompileconfigs)),
+                         ov::test::utils::appendPlatformTypeTestName<InferWithDefaultHostCompileTests>);

@@ -75,9 +75,7 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compile(const std::shared_ptr<con
         !(config.has<DYNAMIC_SHAPE_TO_STATIC>() && config.get<DYNAMIC_SHAPE_TO_STATIC>())) {
         const auto isDynamic = [](const auto& port) {
             auto& shape = port.get_partial_shape();
-            // HostCompile_Interpreter does not support dynamic batch for now
-            // EISW-221309
-            return shape.is_dynamic() && (shape.rank().get_length() == 4);
+            return shape.is_dynamic() && (shape.rank().get_length() == 4) && shape[0].is_static();
         };
 
         if (model) {
